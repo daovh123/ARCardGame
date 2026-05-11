@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class GameUIManager : MonoBehaviour
 {
@@ -19,12 +20,13 @@ public class GameUIManager : MonoBehaviour
     public GameObject gameOverPanel;
     public TMP_Text winnerText;
     public Button gameOverRestartButton;
+    public Button backMenuButton;
     private void Start()
     {
         drawButton.onClick.AddListener(OnDrawButtonClicked);
         restartButton.onClick.AddListener(OnRestartButtonClicked);
         gameOverRestartButton.onClick.AddListener(OnRestartButtonClicked);
-
+        backMenuButton.onClick.AddListener(OnBackMenuClicked);
         gameOverPanel.SetActive(false);
 
         RefreshUI();
@@ -101,5 +103,10 @@ public class GameUIManager : MonoBehaviour
     {
         gameManager.StartOfflineGame();
         RefreshUI();
+    }
+
+    private void OnBackMenuClicked()
+    {
+        SceneManager.LoadScene("MainMenuScene");
     }
 }
