@@ -2,7 +2,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
-public class GameManager : MonoBehaviour
+using ExitGames.Client.Photon;
+public class GameManager : MonoBehaviourPunCallbacks
 {
     public int playerCount = 4;
     public int startCardCount = 1;
@@ -19,6 +20,21 @@ public class GameManager : MonoBehaviour
     private void Awake()
     {
         StartOfflineGame();
+    }
+
+    private void Start()
+    {
+        if (PhotonNetwork.InRoom)
+        {
+            if (PhotonNetwork.IsMasterClient)
+            {
+                PublishGameState();
+            }
+            else
+            {
+                TryApplyRoomState();
+            }
+        }
     }
 
     // private void Update()
@@ -52,29 +68,29 @@ public class GameManager : MonoBehaviour
         direction = 1;
         lastMessage = "Game started!";
         winnerName = "";
-    if (PhotonNetwork.InRoom)
-    {
-        playerCount = PhotonNetwork.PlayerList.Length;
-
-        for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+        if (PhotonNetwork.InRoom)
         {
-            string playerName = PhotonNetwork.PlayerList[i].NickName;
+            playerCount = PhotonNetwork.PlayerList.Length;
 
-            if (string.IsNullOrEmpty(playerName))
+            for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
             {
-                playerName = "Player " + (i + 1);
-            }
+                string playerName = PhotonNetwork.PlayerList[i].NickName;
 
-            players.Add(new PlayerData(i, playerName));
+                if (string.IsNullOrEmpty(playerName))
+                {
+                    playerName = "Player " + (i + 1);
+                }
+
+                players.Add(new PlayerData(i, playerName));
+            }
         }
-    }
-    else
-    {
-        for (int i = 0; i < playerCount; i++)
+        else
         {
-            players.Add(new PlayerData(i, $"Player {i + 1}"));
+            for (int i = 0; i < playerCount; i++)
+            {
+                players.Add(new PlayerData(i, $"Player {i + 1}"));
+            }
         }
-    }
 
         deckManager.CreateDeck();
         deckManager.Shuffle();
@@ -87,6 +103,7 @@ public class GameManager : MonoBehaviour
         Debug.Log("Top card: " + topDiscardCard.GetDisplayName());
         PrintCurrentPlayer();
         PrintAllHands();
+        PublishGameState();
     }
 
     private void DealCards()
@@ -127,9 +144,11 @@ public class GameManager : MonoBehaviour
         {
             lastMessage = $"{currentPlayer.playerName} cannot play {selectedCard.GetDisplayName()}";
             Debug.Log(lastMessage);
+
+            PublishGameState();
+
             return;
         }
-
         currentPlayer.handCards.RemoveAt(handCardIndex);
         topDiscardCard = selectedCard;
 
@@ -141,12 +160,16 @@ public class GameManager : MonoBehaviour
             winnerName = currentPlayer.playerName;
             lastMessage = $"{currentPlayer.playerName} wins!";
             Debug.Log(lastMessage);
+
+            PublishGameState();
+
             return;
         }
 
         ApplyCardEffect(selectedCard);
         PrintCurrentPlayer();
         PrintAllHands();
+        PublishGameState();
     }
 
     public void DrawCard()
@@ -166,10 +189,11 @@ public class GameManager : MonoBehaviour
             lastMessage = $"{currentPlayer.playerName} drew a card.";
             Debug.Log(lastMessage);
         }
-
         MoveToNextPlayer();
         PrintCurrentPlayer();
         PrintAllHands();
+
+        PublishGameState();
     }
 
     private void ApplyCardEffect(CardData card)
@@ -247,6 +271,21 @@ public class GameManager : MonoBehaviour
     }
     public List<CardData> GetCurrentPlayerHand()
     {
+        if (players == null || players.Count == 0)
+        {
+            return new List<CardData>();
+        }
+
+        if (PhotonNetwork.InRoom)
+        {
+            int localIndex = GetLocalPlayerIndex();
+
+            if (localIndex >= 0 && localIndex < players.Count)
+            {
+                return players[localIndex].handCards;
+            }
+        }
+
         return players[currentPlayerIndex].handCards;
     }
 
@@ -297,5 +336,106 @@ public class GameManager : MonoBehaviour
 
         return currentPhotonPlayer == PhotonNetwork.LocalPlayer;
     }
+    private GameStateData CreateStateData()
+    {
+        GameStateData state = new GameStateData();
 
+        state.players = players;
+        state.deckCards = deckManager.GetDeckCards();
+        state.topDiscardCard = topDiscardCard;
+
+        state.currentPlayerIndex = currentPlayerIndex;
+        state.direction = direction;
+
+        state.isGameOver = isGameOver;
+        state.lastMessage = lastMessage;
+        state.winnerName = winnerName;
+
+        return state;
+    }
+
+    private void ApplyStateData(GameStateData state)
+    {
+        if (state == null)
+        {
+            return;
+        }
+
+        players = state.players;
+        deckManager.SetDeckCards(state.deckCards);
+
+        topDiscardCard = state.topDiscardCard;
+        currentPlayerIndex = state.currentPlayerIndex;
+        direction = state.direction;
+
+        isGameOver = state.isGameOver;
+        lastMessage = state.lastMessage;
+        winnerName = state.winnerName;
+    }
+
+    private void PublishGameState()
+    {
+        if (!PhotonNetwork.InRoom)
+        {
+            return;
+        }
+
+        GameStateData state = CreateStateData();
+        string json = JsonUtility.ToJson(state);
+
+        Hashtable props = new Hashtable();
+        props["gameState"] = json;
+
+        PhotonNetwork.CurrentRoom.SetCustomProperties(props);
+    }
+
+    private void TryApplyRoomState()
+    {
+        if (!PhotonNetwork.InRoom)
+        {
+            return;
+        }
+
+        if (PhotonNetwork.CurrentRoom.CustomProperties.ContainsKey("gameState"))
+        {
+            string json = PhotonNetwork.CurrentRoom.CustomProperties["gameState"].ToString();
+            GameStateData state = JsonUtility.FromJson<GameStateData>(json);
+            ApplyStateData(state);
+        }
+    }
+
+    public override void OnRoomPropertiesUpdate(Hashtable propertiesThatChanged)
+    {
+        if (propertiesThatChanged.ContainsKey("gameState"))
+        {
+            string json = propertiesThatChanged["gameState"].ToString();
+            GameStateData state = JsonUtility.FromJson<GameStateData>(json);
+
+            ApplyStateData(state);
+
+            GameUIManager uiManager = FindAnyObjectByType<GameUIManager>();
+
+            if (uiManager != null)
+            {
+                uiManager.RefreshUI();
+            }
+        }
+    }
+        public int GetLocalPlayerIndex()
+    {
+        if (!PhotonNetwork.InRoom)
+        {
+            return currentPlayerIndex;
+        }
+
+        for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+        {
+            if (PhotonNetwork.PlayerList[i] == PhotonNetwork.LocalPlayer)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
 }

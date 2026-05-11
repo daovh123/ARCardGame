@@ -60,4 +60,20 @@ public class DeckManager
         deck.RemoveAt(0);
         return card;
     }
+    public List<CardData> GetDeckCards()
+{
+    return deck;
+}
+
+public void SetDeckCards(List<CardData> newDeck)
+{
+    if (newDeck == null)
+    {
+        deck = new List<CardData>();
+    }
+    else
+    {
+        deck = newDeck;
+    }
+}
 }

@@ -191,6 +191,12 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
             return;
         }
 
+        createRoomButton.interactable = false;
+        joinRoomButton.interactable = false;
+        readyButton.interactable = false;
+        startGameButton.interactable = false;
+        backButton.interactable = false;
+
         PhotonNetwork.LoadLevel("GameScene");
     }
 

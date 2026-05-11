@@ -1,8 +1,10 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using Photon.Pun;
 
 public class GameUIManager : MonoBehaviour
 {
@@ -119,6 +121,24 @@ public class GameUIManager : MonoBehaviour
 
     private void OnBackMenuClicked()
     {
+        if (PhotonNetwork.InRoom)
+        {
+            PhotonNetwork.LeaveRoom();
+            StartCoroutine(LoadMenuAfterLeavingRoom());
+        }
+        else
+        {
+            SceneManager.LoadScene("MainMenuScene");
+        }
+    }
+
+    private IEnumerator LoadMenuAfterLeavingRoom()
+    {
+        while (PhotonNetwork.InRoom)
+        {
+            yield return null;
+        }
+
         SceneManager.LoadScene("MainMenuScene");
     }
 
