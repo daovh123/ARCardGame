@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
-
+using Photon.Pun;
+using Photon.Realtime;
 public class GameManager : MonoBehaviour
 {
     public int playerCount = 4;
@@ -51,10 +52,29 @@ public class GameManager : MonoBehaviour
         direction = 1;
         lastMessage = "Game started!";
         winnerName = "";
+    if (PhotonNetwork.InRoom)
+    {
+        playerCount = PhotonNetwork.PlayerList.Length;
+
+        for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+        {
+            string playerName = PhotonNetwork.PlayerList[i].NickName;
+
+            if (string.IsNullOrEmpty(playerName))
+            {
+                playerName = "Player " + (i + 1);
+            }
+
+            players.Add(new PlayerData(i, playerName));
+        }
+    }
+    else
+    {
         for (int i = 0; i < playerCount; i++)
         {
             players.Add(new PlayerData(i, $"Player {i + 1}"));
         }
+    }
 
         deckManager.CreateDeck();
         deckManager.Shuffle();
@@ -261,7 +281,21 @@ public class GameManager : MonoBehaviour
         return winnerName;
     }
 
+    public bool IsLocalPlayerTurn()
+    {
+        if (!PhotonNetwork.InRoom)
+        {
+            return true;
+        }
 
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= PhotonNetwork.PlayerList.Length)
+        {
+            return false;
+        }
 
+        Player currentPhotonPlayer = PhotonNetwork.PlayerList[currentPlayerIndex];
+
+        return currentPhotonPlayer == PhotonNetwork.LocalPlayer;
+    }
 
 }
