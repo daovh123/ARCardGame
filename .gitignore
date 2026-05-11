@@ -1,0 +1,43 @@
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+
+# Loại bỏ các file build của Android/iOS
+*.apk
+*.unitypackage
+*.obb
+*_BackUpThisFolder_ButDontShipItWithYourGame/
+*_BurstDebugInformation_DoNotShip/
+
+# Loại bỏ các file project của IDE (Visual Studio, VS Code, Rider)
+.vscode/
+.gradle/
+/[[Aa]ssembly-CSharp-Editor.csproj
+/[Aa]ssembly-CSharp.csproj
+/*.sln
+/*.slnx
+/*.userprefs
+/*.csproj
+/*.unityproj
+/*.suo
+/*.tmp
+/*.user
+/*.pidb
+/*.booproj
+/*.svd
+/*.pdb
+/*.opendb
+/*.IDB
+/DerivedData
+
+# Loại bỏ file tạm của hệ điều hành
+.DS_Store
+Thumbs.db
+
+# Unity cụ thể
+.utmp/
