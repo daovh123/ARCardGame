@@ -26,21 +26,26 @@ public class DeckManager
 
         foreach (CardColor color in colors)
         {
-            for (int number = 1; number <= 5; number++)
-            {
-                deck.Add(new CardData(nextCardId++, color, CardType.Number, number));
-            }
+            deck.Add(new CardData(nextCardId++, color, CardType.Number, 0));
 
-            deck.Add(new CardData(nextCardId++, color, CardType.Block));
-            deck.Add(new CardData(nextCardId++, color, CardType.Reverse));
-            deck.Add(new CardData(nextCardId++, color, CardType.DrawTwo));
+            for (int copy = 0; copy < 2; copy++)
+            {
+                for (int number = 1; number <= 9; number++)
+                {
+                    deck.Add(new CardData(nextCardId++, color, CardType.Number, number));
+                }
+
+                deck.Add(new CardData(nextCardId++, color, CardType.Block));
+                deck.Add(new CardData(nextCardId++, color, CardType.Reverse));
+                deck.Add(new CardData(nextCardId++, color, CardType.DrawTwo));
+            }
         }
 
-        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
-        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
-
-        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
-        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
+        for (int i = 0; i < 4; i++)
+        {
+            deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
+            deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
+        }
     }
 
     public void Shuffle()
@@ -66,20 +71,24 @@ public class DeckManager
         deck.RemoveAt(0);
         return card;
     }
-        public List<CardData> GetDeckCards()
+
+    public void AddCards(List<CardData> cards)
+    {
+        if (cards == null || cards.Count == 0)
+        {
+            return;
+        }
+
+        deck.AddRange(cards);
+    }
+
+    public List<CardData> GetDeckCards()
     {
         return deck;
     }
 
     public void SetDeckCards(List<CardData> newDeck)
     {
-        if (newDeck == null)
-        {
-            deck = new List<CardData>();
-        }
-        else
-        {
-            deck = newDeck;
-        }
+        deck = newDeck ?? new List<CardData>();
     }
 }

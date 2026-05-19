@@ -3,20 +3,28 @@ using UnityEngine;
 using Photon.Pun;
 using Photon.Realtime;
 using ExitGames.Client.Photon;
+
 public class GameManager : MonoBehaviourPunCallbacks
 {
     public int playerCount = 4;
-    public int startCardCount = 1;
+    public int startCardCount = 7;
 
     private DeckManager deckManager = new DeckManager();
     private List<PlayerData> players = new List<PlayerData>();
+    private List<CardData> discardPile = new List<CardData>();
 
     private CardData topDiscardCard;
+    private CardColor currentColor = CardColor.Wild;
     private int currentPlayerIndex = 0;
     private int direction = 1;
+    private bool hasDrawnThisTurn = false;
+    private int drawnCardIndex = -1;
+    private int pendingDrawPenalty = 0;
+    private int unoDeclaredPlayerIndex = -1;
     private bool isGameOver = false;
     private string lastMessage = "";
     private string winnerName = "";
+
     private void Awake()
     {
         if (!PhotonNetwork.InRoom)
@@ -24,6 +32,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             StartOfflineGame();
         }
     }
+
     private void Start()
     {
         if (PhotonNetwork.InRoom)
@@ -40,37 +49,21 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
     }
 
-    // private void Update()
-    // {
-    //     if (Input.GetKeyDown(KeyCode.Alpha1))
-    //     {
-    //         PlayCard(0);
-    //     }
-
-    //     if (Input.GetKeyDown(KeyCode.Alpha2))
-    //     {
-    //         PlayCard(1);
-    //     }
-
-    //     if (Input.GetKeyDown(KeyCode.Alpha3))
-    //     {
-    //         PlayCard(2);
-    //     }
-
-    //     if (Input.GetKeyDown(KeyCode.D))
-    //     {
-    //         DrawCard();
-    //     }
-    // }
-
     public void StartOfflineGame()
     {
         players.Clear();
+        discardPile.Clear();
         isGameOver = false;
         currentPlayerIndex = 0;
         direction = 1;
-        lastMessage = "Game started!";
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        pendingDrawPenalty = 0;
+        unoDeclaredPlayerIndex = -1;
+        currentColor = CardColor.Wild;
+        lastMessage = "Match color, number, symbol, or play a Wild.";
         winnerName = "";
+
         if (PhotonNetwork.InRoom)
         {
             playerCount = PhotonNetwork.PlayerList.Length;
@@ -89,40 +82,23 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
         else
         {
-    if (PhotonNetwork.InRoom)
-    {
-        playerCount = PhotonNetwork.PlayerList.Length;
-
-        for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
-        {
-            string playerName = PhotonNetwork.PlayerList[i].NickName;
-
-            if (string.IsNullOrEmpty(playerName))
+            for (int i = 0; i < playerCount; i++)
             {
-                playerName = "Player " + (i + 1);
+                players.Add(new PlayerData(i, "Player " + (i + 1)));
             }
-
-            players.Add(new PlayerData(i, playerName));
-        }
-    }
-    else
-    {
-        for (int i = 0; i < playerCount; i++)
-        {
-            players.Add(new PlayerData(i, $"Player {i + 1}"));
-        }
-    }
         }
 
         deckManager.CreateDeck();
         deckManager.Shuffle();
 
         DealCards();
+        PrepareInitialDiscard();
 
-        topDiscardCard = deckManager.DrawCard();
+        if (topDiscardCard != null)
+        {
+            Debug.Log("Top card: " + topDiscardCard.GetDisplayName() + " | Current color: " + currentColor);
+        }
 
-        Debug.Log("Game started!");
-        Debug.Log("Top card: " + topDiscardCard.GetDisplayName());
         PrintCurrentPlayer();
         PrintAllHands();
         PublishGameState();
@@ -134,7 +110,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         {
             foreach (PlayerData player in players)
             {
-                CardData card = deckManager.DrawCard();
+                CardData card = DrawFromDeck();
 
                 if (card != null)
                 {
@@ -144,175 +120,377 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
     }
 
-public void PlayCard(int handCardIndex)
-{
-    if (isGameOver)
+    private void PrepareInitialDiscard()
     {
-        Debug.Log("Game is already over.");
-        return;
-    }
+        topDiscardCard = DrawFromDeck();
 
-    PlayerData currentPlayer = players[currentPlayerIndex];
-
-    if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
-    {
-        Debug.LogWarning("Invalid hand card index.");
-        return;
-    }
-
-    CardData selectedCard = currentPlayer.handCards[handCardIndex];
-
-    if (!RuleChecker.IsValidMove(selectedCard, topDiscardCard))
-    {
-        lastMessage = $"{currentPlayer.playerName} cannot play {selectedCard.GetDisplayName()}";
-        Debug.Log(lastMessage);
-
-        PublishGameState();
-
-        return;
-    }
-
-    currentPlayer.handCards.RemoveAt(handCardIndex);
-    topDiscardCard = selectedCard;
-
-    lastMessage = $"{currentPlayer.playerName} played {selectedCard.GetDisplayName()}";
-    Debug.Log(lastMessage);
-
-    // Gọi event khi bài đã được đánh thành công
-    GameEvents.CardPlayed(selectedCard, currentPlayerIndex);
-
-    if (currentPlayer.handCards.Count == 0)
-    {
-        isGameOver = true;
-        winnerName = currentPlayer.playerName;
-        lastMessage = $"{currentPlayer.playerName} wins!";
-        Debug.Log(lastMessage);
-
-        GameEvents.GameOver(winnerName);
-
-        PublishGameState();
-
-        return;
-    }
-
-    ApplyCardEffect(selectedCard);
-    PrintCurrentPlayer();
-    PrintAllHands();
-
-    PublishGameState();
-}
-
-    public void DrawCard()
-    {
-        if (isGameOver)
+        while (topDiscardCard != null && topDiscardCard.type == CardType.DrawFour)
         {
-            Debug.Log("Game is already over.");
+            deckManager.AddCards(new List<CardData> { topDiscardCard });
+            deckManager.Shuffle();
+            topDiscardCard = DrawFromDeck();
+        }
+
+        if (topDiscardCard == null)
+        {
             return;
         }
 
-        PlayerData currentPlayer = players[currentPlayerIndex];
+        if (topDiscardCard.type == CardType.ChangeColor)
+        {
+            currentColor = ChooseBestColorForPlayer(players[currentPlayerIndex]);
+            lastMessage = "Wild starts the discard pile. Current color is " + currentColor + ".";
+            return;
+        }
+
+        currentColor = topDiscardCard.color;
+
+        if (topDiscardCard.type == CardType.Block)
+        {
+            MoveToNextPlayer();
+            lastMessage = "First card is Skip. Player 1 is skipped.";
+        }
+        else if (topDiscardCard.type == CardType.Reverse)
+        {
+            direction *= -1;
+
+            if (players.Count == 2)
+            {
+                MoveToNextPlayer();
+                lastMessage = "First card is Reverse. Player 1 is skipped.";
+            }
+            else
+            {
+                currentPlayerIndex = players.Count - 1;
+                GameEvents.TurnChanged(currentPlayerIndex);
+                lastMessage = "First card is Reverse. Direction starts reversed.";
+            }
+        }
+        else if (topDiscardCard.type == CardType.DrawTwo)
+        {
+            DrawCardsForPlayer(players[currentPlayerIndex], 2);
+            MoveToNextPlayer();
+            lastMessage = "First card is Draw Two. Player 1 draws 2 and is skipped.";
+        }
+    }
+
+    private CardData DrawFromDeck()
+    {
         CardData card = deckManager.DrawCard();
 
         if (card != null)
         {
-            currentPlayer.handCards.Add(card);
-            lastMessage = $"{currentPlayer.playerName} drew a card.";
-            Debug.Log(lastMessage);
-            GameEvents.CardDrawn(currentPlayerIndex);
+            return card;
         }
-        MoveToNextPlayer();
+
+        RecycleDiscardPileIntoDeck();
+        return deckManager.DrawCard();
+    }
+
+    private void RecycleDiscardPileIntoDeck()
+    {
+        if (discardPile.Count == 0)
+        {
+            return;
+        }
+
+        deckManager.AddCards(discardPile);
+        discardPile.Clear();
+        deckManager.Shuffle();
+        Debug.Log("Draw pile reshuffled from discard pile.");
+    }
+
+    private void MoveCurrentTopCardToDiscardPile()
+    {
+        if (topDiscardCard != null)
+        {
+            discardPile.Add(topDiscardCard);
+        }
+    }
+
+    private void DrawCardsForPlayer(PlayerData player, int count)
+    {
+        if (player == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < count; i++)
+        {
+            CardData drawnCard = DrawFromDeck();
+
+            if (drawnCard != null)
+            {
+                player.handCards.Add(drawnCard);
+                GameEvents.CardDrawn(player.playerIndex);
+            }
+        }
+    }
+
+    public void PlayCard(int handCardIndex)
+    {
+        PlayCard(handCardIndex, CardColor.Wild);
+    }
+
+    public void PlayCard(int handCardIndex, CardColor chosenColor)
+    {
+        if (isGameOver || players.Count == 0)
+        {
+            return;
+        }
+
+        PlayerData currentPlayer = players[currentPlayerIndex];
+
+        if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
+        {
+            Debug.LogWarning("Invalid hand card index.");
+            return;
+        }
+
+        CardData selectedCard = currentPlayer.handCards[handCardIndex];
+
+        if (!CanPlayHandCard(handCardIndex))
+        {
+            lastMessage = currentPlayer.playerName + " cannot play " + selectedCard.GetDisplayName() + " on " + GetTopCardStatus() + ".";
+            Debug.Log(lastMessage);
+            PublishGameState();
+            return;
+        }
+
+        if (RequiresColorChoice(selectedCard) && !IsValidChosenColor(chosenColor))
+        {
+            lastMessage = "Choose a color before playing a Wild card.";
+            PublishGameState();
+            return;
+        }
+
+        int actingPlayerIndex = currentPlayerIndex;
+        bool shouldHaveCalledUno = currentPlayer.handCards.Count == 2;
+
+        currentPlayer.handCards.RemoveAt(handCardIndex);
+        MoveCurrentTopCardToDiscardPile();
+        topDiscardCard = selectedCard;
+        currentColor = RequiresColorChoice(selectedCard) ? chosenColor : selectedCard.color;
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+
+        lastMessage = currentPlayer.playerName + " played " + selectedCard.GetDisplayName();
+        if (RequiresColorChoice(selectedCard))
+        {
+            lastMessage += " and chose " + currentColor + ".";
+        }
+
+        Debug.Log(lastMessage);
+        GameEvents.CardPlayed(selectedCard, actingPlayerIndex);
+
+        if (shouldHaveCalledUno && currentPlayer.handCards.Count == 1)
+        {
+            if (unoDeclaredPlayerIndex == actingPlayerIndex)
+            {
+                lastMessage += " UNO!";
+            }
+            else
+            {
+                DrawCardsForPlayer(currentPlayer, 2);
+                lastMessage += " " + currentPlayer.playerName + " forgot UNO and draws 2 cards.";
+            }
+        }
+
+        unoDeclaredPlayerIndex = -1;
+
+        ApplyCardEffect(selectedCard);
+
+        if (currentPlayer.handCards.Count == 0)
+        {
+            string finalPenaltyMessage = ResolveRoundEndDrawPenalty();
+            isGameOver = true;
+            winnerName = currentPlayer.playerName;
+            lastMessage = currentPlayer.playerName + " wins!" + finalPenaltyMessage;
+            Debug.Log(lastMessage);
+            GameEvents.GameOver(winnerName);
+            PublishGameState();
+            return;
+        }
+
         PrintCurrentPlayer();
         PrintAllHands();
-
         PublishGameState();
     }
 
-        private void ApplyCardEffect(CardData card)
+    private string ResolveRoundEndDrawPenalty()
+    {
+        if (pendingDrawPenalty <= 0 || players.Count == 0)
+        {
+            return "";
+        }
+
+        PlayerData targetPlayer = players[currentPlayerIndex];
+        int cardsToDraw = pendingDrawPenalty;
+
+        DrawCardsForPlayer(targetPlayer, cardsToDraw);
+        pendingDrawPenalty = 0;
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        unoDeclaredPlayerIndex = -1;
+        return " " + targetPlayer.playerName + " draws " + cardsToDraw + " final penalty cards.";
+    }
+
+    public void DrawCard()
+    {
+        if (isGameOver || players.Count == 0)
+        {
+            return;
+        }
+
+        if (pendingDrawPenalty > 0)
+        {
+            ResolvePendingDrawPenalty();
+            return;
+        }
+
+        if (hasDrawnThisTurn)
+        {
+            PassAfterDraw();
+            return;
+        }
+
+        PlayerData currentPlayer = players[currentPlayerIndex];
+
+        CardData card = DrawFromDeck();
+
+        if (card != null)
+        {
+            currentPlayer.handCards.Add(card);
+            GameEvents.CardDrawn(currentPlayerIndex);
+            hasDrawnThisTurn = false;
+            drawnCardIndex = -1;
+            lastMessage = currentPlayer.playerName + " drew a card and lost their turn.";
+            Debug.Log(lastMessage);
+        }
+
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        MoveToNextPlayer();
+        PrintCurrentPlayer();
+        PrintAllHands();
+        PublishGameState();
+    }
+
+    public void PassAfterDraw()
+    {
+        if (isGameOver || !hasDrawnThisTurn)
+        {
+            return;
+        }
+
+        PlayerData currentPlayer = players[currentPlayerIndex];
+        lastMessage = currentPlayer.playerName + " passed after drawing.";
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        unoDeclaredPlayerIndex = -1;
+        MoveToNextPlayer();
+        PublishGameState();
+    }
+
+    public void CallUno()
+    {
+        if (isGameOver || players.Count == 0)
+        {
+            return;
+        }
+
+        PlayerData currentPlayer = players[currentPlayerIndex];
+
+        if (currentPlayer.handCards.Count != 2)
+        {
+            lastMessage = "Call UNO when you are about to play your second-to-last card.";
+            PublishGameState();
+            return;
+        }
+
+        unoDeclaredPlayerIndex = currentPlayerIndex;
+        lastMessage = currentPlayer.playerName + " called UNO!";
+        PublishGameState();
+    }
+
+    private void ApplyCardEffect(CardData card)
     {
         if (card.type == CardType.Block)
         {
             MoveToNextPlayer();
             MoveToNextPlayer();
-            if (card.type == CardType.Block)
-            {
-                Debug.Log("Block effect activated.");
-            }
-            else
-            {
-                Debug.Log("Skip effect activated.");
-            }
+            lastMessage += " Next player is skipped.";
+            Debug.Log("Skip effect activated.");
         }
         else if (card.type == CardType.Reverse)
         {
             direction *= -1;
-            MoveToNextPlayer();
+
+            if (players.Count == 2)
+            {
+                MoveToNextPlayer();
+                MoveToNextPlayer();
+                lastMessage += " Reverse acts like Skip in a 2-player game.";
+            }
+            else
+            {
+                MoveToNextPlayer();
+                lastMessage += " Direction reversed.";
+            }
+
             Debug.Log("Reverse effect activated.");
         }
         else if (card.type == CardType.DrawTwo)
         {
+            pendingDrawPenalty += 2;
             MoveToNextPlayer();
-
-            PlayerData targetPlayer = players[currentPlayerIndex];
-
-            for (int i = 0; i < 2; i++)
-            {
-                CardData drawnCard = deckManager.DrawCard();
-
-                if (drawnCard != null)
-                {
-                    targetPlayer.handCards.Add(drawnCard);
-                }
-            }
-
-            Debug.Log($"{targetPlayer.playerName} draws 2 cards.");
-
-            MoveToNextPlayer();
+            lastMessage += " Penalty is +" + pendingDrawPenalty + ". " + players[currentPlayerIndex].playerName + " must stack " + GetPendingDrawStackLabel() + " or draw " + pendingDrawPenalty + ".";
         }
         else if (card.type == CardType.DrawFour)
         {
-            CardColor chosenColor = ChooseBestColorForCurrentPlayer();
-
-            card.color = chosenColor;
-            topDiscardCard.color = chosenColor;
-
+            pendingDrawPenalty += 4;
             MoveToNextPlayer();
-
-            PlayerData targetPlayer = players[currentPlayerIndex];
-
-            for (int i = 0; i < 4; i++)
-            {
-                CardData drawnCard = deckManager.DrawCard();
-
-                if (drawnCard != null)
-                {
-                    targetPlayer.handCards.Add(drawnCard);
-                }
-            }
-
-            Debug.Log($"{targetPlayer.playerName} draws 4 cards.");
-            Debug.Log("Color changed to " + chosenColor);
-
-            MoveToNextPlayer();
-        }
-        else if (card.type == CardType.ChangeColor)
-        {
-            CardColor chosenColor = ChooseBestColorForCurrentPlayer();
-
-            card.color = chosenColor;
-            topDiscardCard.color = chosenColor;
-
-            Debug.Log("Color changed to " + chosenColor);
-
-            MoveToNextPlayer();
+            lastMessage += " Penalty is +" + pendingDrawPenalty + ". " + players[currentPlayerIndex].playerName + " must stack " + GetPendingDrawStackLabel() + " or draw " + pendingDrawPenalty + ".";
         }
         else
         {
             MoveToNextPlayer();
         }
+
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+    }
+
+    private void ResolvePendingDrawPenalty()
+    {
+        if (pendingDrawPenalty <= 0 || players.Count == 0)
+        {
+            return;
+        }
+
+        PlayerData targetPlayer = players[currentPlayerIndex];
+        int cardsToDraw = pendingDrawPenalty;
+
+        DrawCardsForPlayer(targetPlayer, cardsToDraw);
+        pendingDrawPenalty = 0;
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        unoDeclaredPlayerIndex = -1;
+
+        lastMessage = targetPlayer.playerName + " drew " + cardsToDraw + " penalty cards and lost their turn.";
+        MoveToNextPlayer();
+        PrintCurrentPlayer();
+        PrintAllHands();
+        PublishGameState();
     }
 
     private void MoveToNextPlayer()
     {
+        if (players.Count == 0)
+        {
+            return;
+        }
+
         currentPlayerIndex += direction;
 
         if (currentPlayerIndex >= players.Count)
@@ -329,7 +507,10 @@ public void PlayCard(int handCardIndex)
 
     private void PrintCurrentPlayer()
     {
-        Debug.Log($"Current turn: {players[currentPlayerIndex].playerName}");
+        if (players.Count > 0)
+        {
+            Debug.Log("Current turn: " + players[currentPlayerIndex].playerName);
+        }
     }
 
     private void PrintAllHands()
@@ -340,13 +521,14 @@ public void PlayCard(int handCardIndex)
 
             for (int i = 0; i < player.handCards.Count; i++)
             {
-                hand += $"[{i}] {player.handCards[i].GetDisplayName()}  ";
+                hand += "[" + i + "] " + player.handCards[i].GetDisplayName() + "  ";
             }
 
-            Debug.Log($"{player.playerName}: {hand}");
+            Debug.Log(player.playerName + ": " + hand);
         }
     }
-        public List<CardData> GetCurrentPlayerHand()
+
+    public List<CardData> GetCurrentPlayerHand()
     {
         if (players == null || players.Count == 0)
         {
@@ -366,6 +548,73 @@ public void PlayCard(int handCardIndex)
         return players[currentPlayerIndex].handCards;
     }
 
+    public bool CanPlayHandCard(int handCardIndex)
+    {
+        if (isGameOver || players == null || players.Count == 0)
+        {
+            return false;
+        }
+
+        PlayerData currentPlayer = players[currentPlayerIndex];
+
+        if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
+        {
+            return false;
+        }
+
+        if (hasDrawnThisTurn && handCardIndex != drawnCardIndex)
+        {
+            return false;
+        }
+
+        if (pendingDrawPenalty > 0)
+        {
+            return IsStackableDrawCard(currentPlayer.handCards[handCardIndex], currentPlayer.handCards);
+        }
+
+        return RuleChecker.IsValidMove(currentPlayer.handCards[handCardIndex], topDiscardCard, currentColor, currentPlayer.handCards);
+    }
+
+    public bool HasAnyPlayableCard()
+    {
+        if (players == null || players.Count == 0)
+        {
+            return false;
+        }
+
+        if (pendingDrawPenalty > 0)
+        {
+            return HasStackableDrawCard(players[currentPlayerIndex].handCards);
+        }
+
+        return RuleChecker.HasPlayableCard(players[currentPlayerIndex].handCards, topDiscardCard, currentColor);
+    }
+
+    public bool IsWaitingForDrawDecision()
+    {
+        return hasDrawnThisTurn;
+    }
+
+    public bool HasPendingDrawPenalty()
+    {
+        return pendingDrawPenalty > 0;
+    }
+
+    public int GetPendingDrawPenalty()
+    {
+        return pendingDrawPenalty;
+    }
+
+    public string GetPendingDrawStackLabel()
+    {
+        return "+2/+4";
+    }
+
+    public CardColor GetCurrentColor()
+    {
+        return currentColor;
+    }
+
     public CardData GetTopDiscardCard()
     {
         return topDiscardCard;
@@ -373,6 +622,11 @@ public void PlayCard(int handCardIndex)
 
     public string GetCurrentPlayerName()
     {
+        if (players == null || players.Count == 0)
+        {
+            return "";
+        }
+
         return players[currentPlayerIndex].playerName;
     }
 
@@ -380,19 +634,23 @@ public void PlayCard(int handCardIndex)
     {
         return isGameOver;
     }
+
     public string GetLastMessage()
     {
         return lastMessage;
     }
+
     public List<PlayerData> GetPlayers()
     {
         return players;
     }
+
     public int GetCurrentPlayerIndex()
     {
         return currentPlayerIndex;
     }
-        public string GetWinnerName()
+
+    public string GetWinnerName()
     {
         return winnerName;
     }
@@ -410,20 +668,129 @@ public void PlayCard(int handCardIndex)
         }
 
         Player currentPhotonPlayer = PhotonNetwork.PlayerList[currentPlayerIndex];
-
         return currentPhotonPlayer == PhotonNetwork.LocalPlayer;
     }
+
+    public bool RequiresColorChoice(CardData card)
+    {
+        return card != null && (card.type == CardType.ChangeColor || card.type == CardType.DrawFour);
+    }
+
+    private bool IsValidChosenColor(CardColor color)
+    {
+        return color == CardColor.Red ||
+               color == CardColor.Blue ||
+               color == CardColor.Green ||
+               color == CardColor.Yellow;
+    }
+
+    private bool IsStackableDrawCard(CardData card, List<CardData> hand)
+    {
+        if (card == null || topDiscardCard == null || pendingDrawPenalty <= 0)
+        {
+            return false;
+        }
+
+        return card.type == CardType.DrawTwo || card.type == CardType.DrawFour;
+    }
+
+    private bool HasStackableDrawCard(List<CardData> hand)
+    {
+        if (hand == null)
+        {
+            return false;
+        }
+
+        foreach (CardData card in hand)
+        {
+            if (IsStackableDrawCard(card, hand))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private CardColor ChooseBestColorForPlayer(PlayerData player)
+    {
+        if (player == null)
+        {
+            return CardColor.Red;
+        }
+
+        int red = 0;
+        int blue = 0;
+        int green = 0;
+        int yellow = 0;
+
+        foreach (CardData card in player.handCards)
+        {
+            switch (card.color)
+            {
+                case CardColor.Red:
+                    red++;
+                    break;
+                case CardColor.Blue:
+                    blue++;
+                    break;
+                case CardColor.Green:
+                    green++;
+                    break;
+                case CardColor.Yellow:
+                    yellow++;
+                    break;
+            }
+        }
+
+        int best = red;
+        CardColor bestColor = CardColor.Red;
+
+        if (blue > best)
+        {
+            best = blue;
+            bestColor = CardColor.Blue;
+        }
+
+        if (green > best)
+        {
+            best = green;
+            bestColor = CardColor.Green;
+        }
+
+        if (yellow > best)
+        {
+            bestColor = CardColor.Yellow;
+        }
+
+        return bestColor;
+    }
+
+    private string GetTopCardStatus()
+    {
+        if (topDiscardCard == null)
+        {
+            return "empty discard";
+        }
+
+        return topDiscardCard.GetDisplayName() + " / " + currentColor;
+    }
+
     private GameStateData CreateStateData()
     {
         GameStateData state = new GameStateData();
 
         state.players = players;
         state.deckCards = deckManager.GetDeckCards();
+        state.discardPile = discardPile;
         state.topDiscardCard = topDiscardCard;
-
+        state.currentColor = currentColor;
         state.currentPlayerIndex = currentPlayerIndex;
         state.direction = direction;
-
+        state.hasDrawnThisTurn = hasDrawnThisTurn;
+        state.drawnCardIndex = drawnCardIndex;
+        state.pendingDrawPenalty = pendingDrawPenalty;
+        state.unoDeclaredPlayerIndex = unoDeclaredPlayerIndex;
         state.isGameOver = isGameOver;
         state.lastMessage = lastMessage;
         state.winnerName = winnerName;
@@ -438,13 +805,17 @@ public void PlayCard(int handCardIndex)
             return;
         }
 
-        players = state.players;
+        players = state.players ?? new List<PlayerData>();
         deckManager.SetDeckCards(state.deckCards);
-
+        discardPile = state.discardPile ?? new List<CardData>();
         topDiscardCard = state.topDiscardCard;
+        currentColor = state.currentColor;
         currentPlayerIndex = state.currentPlayerIndex;
         direction = state.direction;
-
+        hasDrawnThisTurn = state.hasDrawnThisTurn;
+        drawnCardIndex = state.drawnCardIndex;
+        pendingDrawPenalty = state.pendingDrawPenalty;
+        unoDeclaredPlayerIndex = state.unoDeclaredPlayerIndex;
         isGameOver = state.isGameOver;
         lastMessage = state.lastMessage;
         winnerName = state.winnerName;
@@ -487,7 +858,6 @@ public void PlayCard(int handCardIndex)
         {
             string json = propertiesThatChanged["gameState"].ToString();
             GameStateData state = JsonUtility.FromJson<GameStateData>(json);
-
             ApplyStateData(state);
 
             GameUIManager uiManager = FindAnyObjectByType<GameUIManager>();
@@ -498,6 +868,7 @@ public void PlayCard(int handCardIndex)
             }
         }
     }
+
     public int GetLocalPlayerIndex()
     {
         if (!PhotonNetwork.InRoom)
@@ -514,68 +885,5 @@ public void PlayCard(int handCardIndex)
         }
 
         return -1;
-    }
-    private CardColor ChooseBestColorForCurrentPlayer()
-    {
-        PlayerData currentPlayer = players[currentPlayerIndex];
-
-        int redCount = 0;
-        int blueCount = 0;
-        int greenCount = 0;
-        int yellowCount = 0;
-
-        foreach (CardData card in currentPlayer.handCards)
-        {
-            switch (card.color)
-            {
-                case CardColor.Red:
-                    redCount++;
-                    break;
-
-                case CardColor.Blue:
-                    blueCount++;
-                    break;
-
-                case CardColor.Green:
-                    greenCount++;
-                    break;
-
-                case CardColor.Yellow:
-                    yellowCount++;
-                    break;
-            }
-        }
-
-        int max = redCount;
-        CardColor bestColor = CardColor.Red;
-
-        if (blueCount > max)
-        {
-            max = blueCount;
-            bestColor = CardColor.Blue;
-        }
-
-        if (greenCount > max)
-        {
-            max = greenCount;
-            bestColor = CardColor.Green;
-        }
-
-        if (yellowCount > max)
-        {
-            max = yellowCount;
-            bestColor = CardColor.Yellow;
-        }
-
-        return bestColor;
-    }
-        public CardColor GetCurrentColor()
-    {
-        if (topDiscardCard == null)
-        {
-            return CardColor.Red;
-        }
-
-        return topDiscardCard.color;
     }
 }

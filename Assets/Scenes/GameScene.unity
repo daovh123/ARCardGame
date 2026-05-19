@@ -286,7 +286,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameManager
   playerCount: 4
-  startCardCount: 5
+  startCardCount: 7
 --- !u!4 &322022976
 Transform:
   m_ObjectHideFlags: 0

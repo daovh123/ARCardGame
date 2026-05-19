@@ -3,6 +3,7 @@ using UnityEngine;
 public class ARCardSpawner : MonoBehaviour
 {
     private GameObject currentCardVisual;
+    private static CardSpriteDatabase cardDatabase;
 
     private void OnEnable()
     {
@@ -16,10 +17,10 @@ public class ARCardSpawner : MonoBehaviour
 
     private void HandleCardPlayed(CardData card, int playerIndex)
     {
-        SpawnPlayedCard(card, playerIndex);
+        SpawnPlayedCard(card);
     }
 
-    private void SpawnPlayedCard(CardData card, int playerIndex)
+    private void SpawnPlayedCard(CardData card)
     {
         if (currentCardVisual != null)
         {
@@ -34,32 +35,28 @@ public class ARCardSpawner : MonoBehaviour
             return;
         }
 
-        // Tạo cube trực tiếp, không dùng prefab
-        currentCardVisual = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        currentCardVisual.name = "PlayedCard_" + card.GetDisplayName();
-
-        // Đặt ngay giữa màn hình, trước camera 5 đơn vị
-        Vector3 spawnPosition = cam.ViewportToWorldPoint(new Vector3(0.5f, 0.5f, 5f));
-        currentCardVisual.transform.position = spawnPosition;
-
-        // Quay mặt về camera
-        currentCardVisual.transform.rotation = cam.transform.rotation;
-
-        // Làm to để chắc chắn nhìn thấy
-        currentCardVisual.transform.localScale = new Vector3(1.2f, 1.6f, 0.15f);
-
-
-        Renderer renderer = currentCardVisual.GetComponent<Renderer>();
-
-        if (renderer != null)
+        if (cardDatabase == null)
         {
-            renderer.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-            renderer.material.color = GetCardColor(card.color);
+            cardDatabase = Resources.Load<CardSpriteDatabase>("CardSpriteDatabase");
+        }
+
+        Sprite sprite = cardDatabase != null ? cardDatabase.GetSprite(card) : null;
+
+        currentCardVisual = new GameObject("PlayedCard_" + card.GetDisplayName());
+        currentCardVisual.transform.position = cam.ViewportToWorldPoint(new Vector3(0.5f, 0.52f, 4.2f));
+        currentCardVisual.transform.rotation = cam.transform.rotation;
+        currentCardVisual.transform.localScale = new Vector3(1.25f, 1.25f, 1f);
+
+        SpriteRenderer spriteRenderer = currentCardVisual.AddComponent<SpriteRenderer>();
+        spriteRenderer.sprite = sprite;
+        spriteRenderer.sortingOrder = 100;
+
+        if (sprite == null)
+        {
+            spriteRenderer.color = GetCardColor(card.color);
         }
 
         Debug.Log("[AR SPAWNER] Spawned visual card: " + card.GetDisplayName());
-        Debug.Log("[AR SPAWNER] Position: " + currentCardVisual.transform.position);
-        Debug.Log("[AR SPAWNER] Camera position: " + cam.transform.position);
         Destroy(currentCardVisual, 2.5f);
     }
 

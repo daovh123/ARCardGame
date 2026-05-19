@@ -42,24 +42,24 @@ public class CardData
 
     public string GetDisplayName()
     {
+        if (type == CardType.ChangeColor)
+        {
+            return "Wild";
+        }
+
+        if (type == CardType.DrawFour)
+        {
+            return "Wild Draw Four";
+        }
+
         if (type == CardType.Number)
         {
             return $"{color} {number}";
         }
 
-        if (type == CardType.DrawFour)
-        {
-            return "+4";
-        }
-
-        if (type == CardType.ChangeColor)
-        {
-            return "Change Color";
-        }
-
         if (type == CardType.Block)
         {
-            return $"{color} Block";
+            return $"{color} Skip";
         }
 
         return $"{color} {type}";

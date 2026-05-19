@@ -27,6 +27,19 @@ public class CardUI : MonoBehaviour
         }
     }
 
+    public void SetPlayable(bool playable)
+    {
+        CanvasGroup canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null)
+        {
+            canvasGroup = gameObject.AddComponent<CanvasGroup>();
+        }
+
+        canvasGroup.alpha = playable ? 1f : 0.72f;
+        canvasGroup.interactable = playable;
+        canvasGroup.blocksRaycasts = playable;
+    }
+
     public void Setup(CardData card, int handIndex, System.Action<int> onClick)
     {
         this.handIndex = handIndex;
@@ -47,6 +60,17 @@ public class CardUI : MonoBehaviour
             fallbackText.text = sprite == null ? card.GetDisplayName() : "";
         }
 
+        if (button == null)
+        {
+            button = GetComponent<Button>();
+        }
+
+        if (button == null)
+        {
+            return;
+        }
+
+        button.interactable = true;
         button.onClick.RemoveAllListeners();
         button.onClick.AddListener(() =>
         {
