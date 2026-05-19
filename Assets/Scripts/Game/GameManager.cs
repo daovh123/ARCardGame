@@ -19,15 +19,18 @@ public class GameManager : MonoBehaviourPunCallbacks
     private string winnerName = "";
     private void Awake()
     {
-        StartOfflineGame();
+        if (!PhotonNetwork.InRoom)
+        {
+            StartOfflineGame();
+        }
     }
-
     private void Start()
     {
         if (PhotonNetwork.InRoom)
         {
             if (PhotonNetwork.IsMasterClient)
             {
+                StartOfflineGame();
                 PublishGameState();
             }
             else
@@ -86,10 +89,29 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
         else
         {
-            for (int i = 0; i < playerCount; i++)
+    if (PhotonNetwork.InRoom)
+    {
+        playerCount = PhotonNetwork.PlayerList.Length;
+
+        for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+        {
+            string playerName = PhotonNetwork.PlayerList[i].NickName;
+
+            if (string.IsNullOrEmpty(playerName))
             {
-                players.Add(new PlayerData(i, $"Player {i + 1}"));
+                playerName = "Player " + (i + 1);
             }
+
+            players.Add(new PlayerData(i, playerName));
+        }
+    }
+    else
+    {
+        for (int i = 0; i < playerCount; i++)
+        {
+            players.Add(new PlayerData(i, $"Player {i + 1}"));
+        }
+    }
         }
 
         deckManager.CreateDeck();
@@ -122,55 +144,63 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
     }
 
-    public void PlayCard(int handCardIndex)
+public void PlayCard(int handCardIndex)
+{
+    if (isGameOver)
     {
-        if (isGameOver)
-        {
-            Debug.Log("Game is already over.");
-            return;
-        }
-
-        PlayerData currentPlayer = players[currentPlayerIndex];
-
-        if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
-        {
-            Debug.LogWarning("Invalid hand card index.");
-            return;
-        }
-
-        CardData selectedCard = currentPlayer.handCards[handCardIndex];
-
-        if (!RuleChecker.IsValidMove(selectedCard, topDiscardCard))
-        {
-            lastMessage = $"{currentPlayer.playerName} cannot play {selectedCard.GetDisplayName()}";
-            Debug.Log(lastMessage);
-
-            PublishGameState();
-
-            return;
-        }
-        currentPlayer.handCards.RemoveAt(handCardIndex);
-        topDiscardCard = selectedCard;
-
-        lastMessage = $"{currentPlayer.playerName} played {selectedCard.GetDisplayName()}";
-        Debug.Log(lastMessage);
-        if (currentPlayer.handCards.Count == 0)
-        {
-            isGameOver = true;
-            winnerName = currentPlayer.playerName;
-            lastMessage = $"{currentPlayer.playerName} wins!";
-            Debug.Log(lastMessage);
-
-            PublishGameState();
-
-            return;
-        }
-
-        ApplyCardEffect(selectedCard);
-        PrintCurrentPlayer();
-        PrintAllHands();
-        PublishGameState();
+        Debug.Log("Game is already over.");
+        return;
     }
+
+    PlayerData currentPlayer = players[currentPlayerIndex];
+
+    if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
+    {
+        Debug.LogWarning("Invalid hand card index.");
+        return;
+    }
+
+    CardData selectedCard = currentPlayer.handCards[handCardIndex];
+
+    if (!RuleChecker.IsValidMove(selectedCard, topDiscardCard))
+    {
+        lastMessage = $"{currentPlayer.playerName} cannot play {selectedCard.GetDisplayName()}";
+        Debug.Log(lastMessage);
+
+        PublishGameState();
+
+        return;
+    }
+
+    currentPlayer.handCards.RemoveAt(handCardIndex);
+    topDiscardCard = selectedCard;
+
+    lastMessage = $"{currentPlayer.playerName} played {selectedCard.GetDisplayName()}";
+    Debug.Log(lastMessage);
+
+    // Gọi event khi bài đã được đánh thành công
+    GameEvents.CardPlayed(selectedCard, currentPlayerIndex);
+
+    if (currentPlayer.handCards.Count == 0)
+    {
+        isGameOver = true;
+        winnerName = currentPlayer.playerName;
+        lastMessage = $"{currentPlayer.playerName} wins!";
+        Debug.Log(lastMessage);
+
+        GameEvents.GameOver(winnerName);
+
+        PublishGameState();
+
+        return;
+    }
+
+    ApplyCardEffect(selectedCard);
+    PrintCurrentPlayer();
+    PrintAllHands();
+
+    PublishGameState();
+}
 
     public void DrawCard()
     {
@@ -188,6 +218,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             currentPlayer.handCards.Add(card);
             lastMessage = $"{currentPlayer.playerName} drew a card.";
             Debug.Log(lastMessage);
+            GameEvents.CardDrawn(currentPlayerIndex);
         }
         MoveToNextPlayer();
         PrintCurrentPlayer();
@@ -248,6 +279,8 @@ public class GameManager : MonoBehaviourPunCallbacks
         {
             currentPlayerIndex = players.Count - 1;
         }
+
+        GameEvents.TurnChanged(currentPlayerIndex);
     }
 
     private void PrintCurrentPlayer()
@@ -269,7 +302,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             Debug.Log($"{player.playerName}: {hand}");
         }
     }
-    public List<CardData> GetCurrentPlayerHand()
+        public List<CardData> GetCurrentPlayerHand()
     {
         if (players == null || players.Count == 0)
         {
@@ -421,7 +454,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             }
         }
     }
-        public int GetLocalPlayerIndex()
+    public int GetLocalPlayerIndex()
     {
         if (!PhotonNetwork.InRoom)
         {
@@ -438,4 +471,5 @@ public class GameManager : MonoBehaviourPunCallbacks
 
         return -1;
     }
+
 }
