@@ -227,13 +227,21 @@ public void PlayCard(int handCardIndex)
         PublishGameState();
     }
 
-    private void ApplyCardEffect(CardData card)
+        private void ApplyCardEffect(CardData card)
     {
-        if (card.type == CardType.Skip)
+        if (card.type == CardType.Skip || card.type == CardType.Block)
         {
             MoveToNextPlayer();
             MoveToNextPlayer();
-            Debug.Log("Skip effect activated.");
+
+            if (card.type == CardType.Block)
+            {
+                Debug.Log("Block effect activated.");
+            }
+            else
+            {
+                Debug.Log("Skip effect activated.");
+            }
         }
         else if (card.type == CardType.Reverse)
         {
@@ -258,6 +266,43 @@ public void PlayCard(int handCardIndex)
             }
 
             Debug.Log($"{targetPlayer.playerName} draws 2 cards.");
+
+            MoveToNextPlayer();
+        }
+        else if (card.type == CardType.DrawFour)
+        {
+            CardColor chosenColor = ChooseBestColorForCurrentPlayer();
+
+            card.color = chosenColor;
+            topDiscardCard.color = chosenColor;
+
+            MoveToNextPlayer();
+
+            PlayerData targetPlayer = players[currentPlayerIndex];
+
+            for (int i = 0; i < 4; i++)
+            {
+                CardData drawnCard = deckManager.DrawCard();
+
+                if (drawnCard != null)
+                {
+                    targetPlayer.handCards.Add(drawnCard);
+                }
+            }
+
+            Debug.Log($"{targetPlayer.playerName} draws 4 cards.");
+            Debug.Log("Color changed to " + chosenColor);
+
+            MoveToNextPlayer();
+        }
+        else if (card.type == CardType.ChangeColor)
+        {
+            CardColor chosenColor = ChooseBestColorForCurrentPlayer();
+
+            card.color = chosenColor;
+            topDiscardCard.color = chosenColor;
+
+            Debug.Log("Color changed to " + chosenColor);
 
             MoveToNextPlayer();
         }
@@ -471,5 +516,67 @@ public void PlayCard(int handCardIndex)
 
         return -1;
     }
+    private CardColor ChooseBestColorForCurrentPlayer()
+    {
+        PlayerData currentPlayer = players[currentPlayerIndex];
 
+        int redCount = 0;
+        int blueCount = 0;
+        int greenCount = 0;
+        int yellowCount = 0;
+
+        foreach (CardData card in currentPlayer.handCards)
+        {
+            switch (card.color)
+            {
+                case CardColor.Red:
+                    redCount++;
+                    break;
+
+                case CardColor.Blue:
+                    blueCount++;
+                    break;
+
+                case CardColor.Green:
+                    greenCount++;
+                    break;
+
+                case CardColor.Yellow:
+                    yellowCount++;
+                    break;
+            }
+        }
+
+        int max = redCount;
+        CardColor bestColor = CardColor.Red;
+
+        if (blueCount > max)
+        {
+            max = blueCount;
+            bestColor = CardColor.Blue;
+        }
+
+        if (greenCount > max)
+        {
+            max = greenCount;
+            bestColor = CardColor.Green;
+        }
+
+        if (yellowCount > max)
+        {
+            max = yellowCount;
+            bestColor = CardColor.Yellow;
+        }
+
+        return bestColor;
+    }
+        public CardColor GetCurrentColor()
+    {
+        if (topDiscardCard == null)
+        {
+            return CardColor.Red;
+        }
+
+        return topDiscardCard.color;
+    }
 }

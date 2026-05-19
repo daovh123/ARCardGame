@@ -21,10 +21,11 @@ public class GameUIManager : MonoBehaviour
     public Button drawButton;
     public Button restartButton;
     public Button backMenuButton;
-
+    public TMP_Text currentColorText;
     public GameObject gameOverPanel;
     public TMP_Text winnerText;
     public Button gameOverRestartButton;
+
 
     private void Start()
     {
@@ -54,6 +55,9 @@ public class GameUIManager : MonoBehaviour
 
         currentTurnText.text = "Turn: " + gameManager.GetCurrentPlayerName();
         messageText.text = gameManager.GetLastMessage();
+
+        currentColorText.text = "Current Color: " + gameManager.GetCurrentColor();
+        currentColorText.color = GetUITextColor(gameManager.GetCurrentColor());
 
         bool isLocalTurn = gameManager.IsLocalPlayerTurn();
 
@@ -157,4 +161,28 @@ public class GameUIManager : MonoBehaviour
 
         playerStatusText.text = status;
     }
+
+    private Color GetUITextColor(CardColor color)
+{
+    switch (color)
+    {
+        case CardColor.Red:
+            return Color.red;
+
+        case CardColor.Blue:
+            return Color.blue;
+
+        case CardColor.Green:
+            return Color.green;
+
+        case CardColor.Yellow:
+            return Color.yellow;
+
+        case CardColor.Wild:
+            return Color.white;
+
+        default:
+            return Color.white;
+    }
+}
 }

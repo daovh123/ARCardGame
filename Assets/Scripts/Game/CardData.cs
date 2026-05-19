@@ -6,7 +6,8 @@ public enum CardColor
     Red,
     Blue,
     Green,
-    Yellow
+    Yellow,
+    Wild
 }
 
 public enum CardType
@@ -14,7 +15,10 @@ public enum CardType
     Number,
     Skip,
     Reverse,
-    DrawTwo
+    DrawTwo,
+    Block,
+    DrawFour,
+    ChangeColor
 }
 
 [Serializable]
@@ -24,6 +28,10 @@ public class CardData
     public CardColor color;
     public CardType type;
     public int number;
+
+    public CardData()
+    {
+    }
 
     public CardData(int cardId, CardColor color, CardType type, int number = -1)
     {
@@ -38,6 +46,21 @@ public class CardData
         if (type == CardType.Number)
         {
             return $"{color} {number}";
+        }
+
+        if (type == CardType.DrawFour)
+        {
+            return "+4";
+        }
+
+        if (type == CardType.ChangeColor)
+        {
+            return "Change Color";
+        }
+
+        if (type == CardType.Block)
+        {
+            return $"{color} Block";
         }
 
         return $"{color} {type}";
