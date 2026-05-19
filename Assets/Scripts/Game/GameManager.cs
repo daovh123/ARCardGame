@@ -6,6 +6,8 @@ using ExitGames.Client.Photon;
 
 public class GameManager : MonoBehaviourPunCallbacks
 {
+    private const int MaxHandCardsBeforeLoss = 25;
+
     public int playerCount = 4;
     public int startCardCount = 7;
 
@@ -168,7 +170,11 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
         else if (topDiscardCard.type == CardType.DrawTwo)
         {
-            DrawCardsForPlayer(players[currentPlayerIndex], 2);
+            if (DrawCardsForPlayer(players[currentPlayerIndex], 2))
+            {
+                return;
+            }
+
             MoveToNextPlayer();
             lastMessage = "First card is Draw Two. Player 1 draws 2 and is skipped.";
         }
@@ -208,11 +214,11 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
     }
 
-    private void DrawCardsForPlayer(PlayerData player, int count)
+    private bool DrawCardsForPlayer(PlayerData player, int count)
     {
         if (player == null)
         {
-            return;
+            return false;
         }
 
         for (int i = 0; i < count; i++)
@@ -223,8 +229,15 @@ public class GameManager : MonoBehaviourPunCallbacks
             {
                 player.handCards.Add(drawnCard);
                 GameEvents.CardDrawn(player.playerIndex);
+
+                if (TryApplyCardLimitLoss(player))
+                {
+                    return true;
+                }
             }
         }
+
+        return false;
     }
 
     public void PlayCard(int handCardIndex)
@@ -291,7 +304,12 @@ public class GameManager : MonoBehaviourPunCallbacks
             }
             else
             {
-                DrawCardsForPlayer(currentPlayer, 2);
+                if (DrawCardsForPlayer(currentPlayer, 2))
+                {
+                    PublishGameState();
+                    return;
+                }
+
                 lastMessage += " " + currentPlayer.playerName + " forgot UNO and draws 2 cards.";
             }
         }
@@ -364,6 +382,13 @@ public class GameManager : MonoBehaviourPunCallbacks
             GameEvents.CardDrawn(currentPlayerIndex);
             hasDrawnThisTurn = false;
             drawnCardIndex = -1;
+
+            if (TryApplyCardLimitLoss(currentPlayer))
+            {
+                PublishGameState();
+                return;
+            }
+
             lastMessage = currentPlayer.playerName + " drew a card and lost their turn.";
             Debug.Log(lastMessage);
         }
@@ -471,17 +496,37 @@ public class GameManager : MonoBehaviourPunCallbacks
         PlayerData targetPlayer = players[currentPlayerIndex];
         int cardsToDraw = pendingDrawPenalty;
 
-        DrawCardsForPlayer(targetPlayer, cardsToDraw);
         pendingDrawPenalty = 0;
         hasDrawnThisTurn = false;
         drawnCardIndex = -1;
         unoDeclaredPlayerIndex = -1;
+
+        if (DrawCardsForPlayer(targetPlayer, cardsToDraw))
+        {
+            PublishGameState();
+            return;
+        }
 
         lastMessage = targetPlayer.playerName + " drew " + cardsToDraw + " penalty cards and lost their turn.";
         MoveToNextPlayer();
         PrintCurrentPlayer();
         PrintAllHands();
         PublishGameState();
+    }
+
+    private bool TryApplyCardLimitLoss(PlayerData player)
+    {
+        if (player == null || player.handCards.Count <= MaxHandCardsBeforeLoss)
+        {
+            return false;
+        }
+
+        isGameOver = true;
+        winnerName = "";
+        lastMessage = player.playerName + " loses with " + player.handCards.Count + " cards.";
+        Debug.Log(lastMessage);
+        GameEvents.GameOver(lastMessage);
+        return true;
     }
 
     private void MoveToNextPlayer()

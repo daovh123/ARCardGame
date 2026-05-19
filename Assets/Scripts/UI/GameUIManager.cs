@@ -41,17 +41,20 @@ public class GameUIManager : MonoBehaviour
     private Canvas rootCanvas;
     private RectTransform canvasRect;
     private int drawAnimationSequence;
+    private readonly Dictionary<string, Sprite> runtimeSprites = new Dictionary<string, Sprite>();
 
     private void OnEnable()
     {
         GameEvents.OnCardDrawn += HandleCardDrawnEvent;
         GameEvents.OnCardPlayed += HandleCardPlayedEvent;
+        GameEvents.OnSpecialCardPlayed += HandleSpecialCardPlayedEvent;
     }
 
     private void OnDisable()
     {
         GameEvents.OnCardDrawn -= HandleCardDrawnEvent;
         GameEvents.OnCardPlayed -= HandleCardPlayedEvent;
+        GameEvents.OnSpecialCardPlayed -= HandleSpecialCardPlayedEvent;
     }
 
     private void Start()
@@ -122,6 +125,7 @@ public class GameUIManager : MonoBehaviour
 
             bool canPlayCard = isLocalTurn && !isGameOver && gameManager.CanPlayHandCard(i);
             cardUI.SetPlayable(canPlayCard);
+            ConfigureHandCardObject(cardObject, handCards.Count, canPlayCard);
 
             Button cardButton = cardObject.GetComponent<Button>();
 
@@ -138,7 +142,7 @@ public class GameUIManager : MonoBehaviour
         if (isGameOver)
         {
             gameOverPanel.SetActive(true);
-            winnerText.text = gameManager.GetWinnerName() + " wins!";
+            winnerText.text = gameManager.GetLastMessage();
         }
         else
         {
@@ -211,28 +215,40 @@ public class GameUIManager : MonoBehaviour
 
     private void BuildBackground(Transform canvasTransform)
     {
-        RectTransform background = CreatePanel(canvasTransform, "Runtime_Background", new Color(0.02f, 0.10f, 0.13f, 1f));
+        RectTransform background = CreatePanel(canvasTransform, "Runtime_Background", Color.white);
+        Image backgroundImage = background.GetComponent<Image>();
+        backgroundImage.sprite = GetVerticalGradientSprite("game_bg", new Color(0.01f, 0.04f, 0.05f), new Color(0.02f, 0.12f, 0.13f));
         background.SetAsFirstSibling();
         SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        RectTransform table = CreatePanel(canvasTransform, "Runtime_TableSurface", new Color(0.02f, 0.30f, 0.24f, 0.92f));
-        table.SetSiblingIndex(1);
-        SetRect(table, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -28f), new Vector2(900f, 360f));
+        RectTransform frame = CreatePanel(canvasTransform, "Runtime_TableFrame", Color.white);
+        Image frameImage = frame.GetComponent<Image>();
+        frameImage.sprite = GetRoundedRectSprite("table_frame", 256, 128, 34, new Color(0.30f, 0.16f, 0.07f, 1f), new Color(0.82f, 0.55f, 0.24f, 1f), 7);
+        frameImage.type = Image.Type.Sliced;
+        frame.SetSiblingIndex(1);
+        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 22f), new Vector2(1000f, 430f));
+        AddShadow(frame.gameObject, new Color(0f, 0f, 0f, 0.48f), new Vector2(0f, -10f));
 
-        Outline tableOutline = table.GetComponent<Outline>();
-        if (tableOutline == null)
-        {
-            tableOutline = table.gameObject.AddComponent<Outline>();
-        }
+        RectTransform table = CreatePanel(canvasTransform, "Runtime_TableSurface", Color.white);
+        Image tableImage = table.GetComponent<Image>();
+        tableImage.sprite = GetRoundedRectSprite("felt_surface", 256, 128, 28, new Color(0.02f, 0.32f, 0.25f, 0.97f), new Color(0.18f, 0.92f, 0.80f, 0.58f), 4);
+        tableImage.type = Image.Type.Sliced;
+        table.SetSiblingIndex(2);
+        SetRect(table, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 22f), new Vector2(900f, 360f));
 
+        Outline tableOutline = table.gameObject.AddComponent<Outline>();
         tableOutline.effectColor = new Color(0.20f, 0.95f, 0.85f, 0.28f);
         tableOutline.effectDistance = new Vector2(4f, -4f);
     }
 
     private void BuildTopCardDisplay(Transform canvasTransform)
     {
-        RectTransform topPanel = CreatePanel(canvasTransform, "Runtime_DiscardPanel", new Color(0.01f, 0.04f, 0.05f, 0.74f));
-        SetRect(topPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 26f), new Vector2(360f, 270f));
+        RectTransform topPanel = CreatePanel(canvasTransform, "Runtime_DiscardPanel", Color.white);
+        Image topPanelImage = topPanel.GetComponent<Image>();
+        topPanelImage.sprite = GetRoundedRectSprite("discard_panel", 256, 128, 18, new Color(0.01f, 0.04f, 0.05f, 0.82f), new Color(1f, 0.82f, 0.32f, 0.28f), 3);
+        topPanelImage.type = Image.Type.Sliced;
+        AddShadow(topPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -6f));
+        SetRect(topPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 22f), new Vector2(360f, 270f));
 
         topCardImage = CreateImage(topPanel, "TopCardImage");
         topCardImage.preserveAspect = true;
@@ -288,16 +304,27 @@ public class GameUIManager : MonoBehaviour
 
         Vector2[] positions =
         {
-            new Vector2(0f, -228f),
-            new Vector2(-450f, -10f),
-            new Vector2(0f, 236f),
-            new Vector2(450f, -10f)
+            new Vector2(0f, -230f),
+            new Vector2(-575f, 38f),
+            new Vector2(0f, 280f),
+            new Vector2(575f, 38f)
         };
 
         for (int i = 0; i < seatPanels.Length; i++)
         {
-            RectTransform panel = CreatePanel(canvasTransform, "Runtime_PlayerSeat_" + i, new Color(0.02f, 0.06f, 0.08f, 0.78f));
-            SetRect(panel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), positions[i], new Vector2(220f, 58f));
+            RectTransform panel = CreatePanel(canvasTransform, "Runtime_PlayerSeat_" + i, Color.white);
+            Image panelImage = panel.GetComponent<Image>();
+            panelImage.sprite = GetRoundedRectSprite("seat_panel", 256, 96, 20, new Color(0.01f, 0.04f, 0.05f, 0.88f), new Color(0.22f, 0.92f, 0.82f, 0.30f), 2);
+            panelImage.type = Image.Type.Sliced;
+            AddShadow(panel.gameObject, new Color(0f, 0f, 0f, 0.38f), new Vector2(0f, -5f));
+            SetRect(panel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), positions[i], new Vector2(250f, 72f));
+
+            Image avatar = CreateImage(panel, "Avatar");
+            avatar.sprite = GetCircleSprite("avatar_disc", 96, new Color(0.10f, 0.38f, 0.42f, 1f), new Color(1f, 0.82f, 0.32f, 1f), 4);
+            SetRect(avatar.rectTransform, new Vector2(0.04f, 0.18f), new Vector2(0.22f, 0.82f), Vector2.zero, Vector2.zero);
+
+            TMP_Text avatarText = CreateLabel(avatar.transform, (i + 1).ToString(), 20, Color.white);
+            avatarText.fontStyle = FontStyles.Bold;
 
             Image cardBack = CreateImage(panel, "CardBack");
             cardBack.preserveAspect = true;
@@ -305,15 +332,15 @@ public class GameUIManager : MonoBehaviour
             {
                 cardBack.sprite = cardDatabase.card_back;
             }
-            SetRect(cardBack.rectTransform, new Vector2(0.04f, 0.14f), new Vector2(0.22f, 0.86f), Vector2.zero, Vector2.zero);
+            SetRect(cardBack.rectTransform, new Vector2(0.78f, 0.12f), new Vector2(0.94f, 0.88f), Vector2.zero, Vector2.zero);
 
             TMP_Text nameText = CreateLabel(panel, "Player", 18, Color.white);
-            SetRect(nameText.rectTransform, new Vector2(0.27f, 0.50f), new Vector2(0.96f, 0.88f), Vector2.zero, Vector2.zero);
+            SetRect(nameText.rectTransform, new Vector2(0.26f, 0.50f), new Vector2(0.76f, 0.88f), Vector2.zero, Vector2.zero);
             nameText.alignment = TextAlignmentOptions.Left;
             nameText.fontStyle = FontStyles.Bold;
 
             TMP_Text countText = CreateLabel(panel, "0 cards", 16, new Color(0.78f, 0.96f, 1f, 0.90f));
-            SetRect(countText.rectTransform, new Vector2(0.27f, 0.14f), new Vector2(0.96f, 0.50f), Vector2.zero, Vector2.zero);
+            SetRect(countText.rectTransform, new Vector2(0.26f, 0.14f), new Vector2(0.76f, 0.50f), Vector2.zero, Vector2.zero);
             countText.alignment = TextAlignmentOptions.Left;
 
             seatPanels[i] = panel;
@@ -326,14 +353,17 @@ public class GameUIManager : MonoBehaviour
     private void StyleExistingLayout()
     {
         RectTransform handRect = handPanel as RectTransform;
-        SetRect(handRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 122f), new Vector2(900f, 156f));
+        SetRect(handRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 126f), new Vector2(900f, 188f));
 
         Image handImage = handPanel.GetComponent<Image>();
         if (handImage == null)
         {
             handImage = handPanel.gameObject.AddComponent<Image>();
         }
-        handImage.color = new Color(0.02f, 0.04f, 0.06f, 0.54f);
+        handImage.sprite = GetRoundedRectSprite("hand_tray", 256, 96, 22, new Color(0.01f, 0.03f, 0.04f, 0.68f), new Color(0.26f, 0.98f, 0.88f, 0.20f), 2);
+        handImage.type = Image.Type.Sliced;
+        handImage.color = Color.white;
+        AddShadow(handPanel.gameObject, new Color(0f, 0f, 0f, 0.38f), new Vector2(0f, -5f));
 
         HorizontalLayoutGroup layout = handPanel.GetComponent<HorizontalLayoutGroup>();
         if (layout != null)
@@ -385,7 +415,10 @@ public class GameUIManager : MonoBehaviour
         SetRect(rect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -86f), new Vector2(148f, 54f), new Vector2(0.5f, 0.5f));
 
         Image image = buttonObject.GetComponent<Image>();
-        image.color = new Color(0.86f, 0.08f, 0.12f, 0.98f);
+        image.sprite = GetRoundedRectSprite("uno_button", 220, 84, 18, new Color(0.86f, 0.08f, 0.12f, 0.98f), new Color(1f, 0.72f, 0.26f, 0.80f), 4);
+        image.type = Image.Type.Sliced;
+        image.color = Color.white;
+        AddShadow(buttonObject, new Color(0f, 0f, 0f, 0.40f), new Vector2(0f, -4f));
 
         unoButton = buttonObject.GetComponent<Button>();
         unoButton.onClick.AddListener(OnUnoButtonClicked);
@@ -478,6 +511,56 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+    private void ConfigureHandCardObject(GameObject cardObject, int handCount, bool playable)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        RectTransform rect = cardObject.transform as RectTransform;
+        LayoutElement layoutElement = cardObject.GetComponent<LayoutElement>();
+        if (layoutElement == null)
+        {
+            layoutElement = cardObject.AddComponent<LayoutElement>();
+        }
+
+        float width = 102f;
+        if (handCount > 11)
+        {
+            width = 68f;
+        }
+        else if (handCount > 9)
+        {
+            width = 78f;
+        }
+        else if (handCount > 7)
+        {
+            width = 88f;
+        }
+
+        float height = width * 1.48f;
+        layoutElement.preferredWidth = width;
+        layoutElement.preferredHeight = height;
+        layoutElement.flexibleWidth = 0f;
+        layoutElement.flexibleHeight = 0f;
+
+        if (rect != null)
+        {
+            rect.sizeDelta = new Vector2(width, height);
+            rect.localScale = playable ? Vector3.one : Vector3.one * 0.96f;
+        }
+
+        Shadow shadow = cardObject.GetComponent<Shadow>();
+        if (shadow == null)
+        {
+            shadow = cardObject.AddComponent<Shadow>();
+        }
+
+        shadow.effectColor = playable ? new Color(0f, 0f, 0f, 0.54f) : new Color(0f, 0f, 0f, 0.30f);
+        shadow.effectDistance = new Vector2(0f, -4f);
+    }
+
     private void HandleCardDrawnEvent(int playerIndex)
     {
         if (!isActiveAndEnabled)
@@ -521,6 +604,56 @@ public class GameUIManager : MonoBehaviour
 
         StartCoroutine(AnimateCardSprite(sprite, start, end, new Vector2(142f, 210f), 0.50f));
         StartCoroutine(PulseRect(topCardImage.rectTransform, 0.35f));
+    }
+
+    private void HandleSpecialCardPlayedEvent(CardData card, int playerIndex)
+    {
+        if (!isActiveAndEnabled || card == null)
+        {
+            return;
+        }
+
+        BuildRuntimeTheme();
+        if (canvasRect == null)
+        {
+            return;
+        }
+
+        string label = "";
+        Color color = new Color(1f, 0.82f, 0.22f);
+
+        switch (card.type)
+        {
+            case CardType.DrawTwo:
+                label = "+2";
+                color = new Color(1f, 0.72f, 0.16f);
+                break;
+
+            case CardType.DrawFour:
+                label = "+4";
+                color = new Color(1f, 0.24f, 0.22f);
+                break;
+
+            case CardType.Block:
+                label = "SKIP";
+                color = new Color(0.45f, 0.86f, 1f);
+                break;
+
+            case CardType.Reverse:
+                label = "REVERSE";
+                color = new Color(0.50f, 1f, 0.62f);
+                break;
+
+            case CardType.ChangeColor:
+                label = "WILD";
+                color = new Color(1f, 0.92f, 0.28f);
+                break;
+        }
+
+        if (!string.IsNullOrEmpty(label))
+        {
+            StartCoroutine(ShowCenterBurst(label, color));
+        }
     }
 
     private Vector2 GetPlayerPlayOrigin(int playerIndex)
@@ -650,6 +783,41 @@ public class GameUIManager : MonoBehaviour
         rect.localScale = originalScale;
     }
 
+    private IEnumerator ShowCenterBurst(string label, Color color)
+    {
+        GameObject burstObject = new GameObject("Runtime_CenterBurst", typeof(RectTransform), typeof(CanvasGroup), typeof(TextMeshProUGUI));
+        burstObject.transform.SetParent(canvasRect, false);
+        burstObject.transform.SetAsLastSibling();
+
+        RectTransform rect = burstObject.GetComponent<RectTransform>();
+        SetRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 80f), new Vector2(520f, 110f));
+
+        TMP_Text text = burstObject.GetComponent<TMP_Text>();
+        StyleText(text, 64, color, TextAlignmentOptions.Center, FontStyles.Bold);
+        text.text = label;
+
+        Outline outline = burstObject.AddComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
+        outline.effectDistance = new Vector2(4f, -4f);
+
+        CanvasGroup group = burstObject.GetComponent<CanvasGroup>();
+        float duration = 0.72f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float t = Mathf.Clamp01(elapsed / duration);
+            rect.localScale = Vector3.one * Mathf.Lerp(0.74f, 1.18f, 1f - Mathf.Pow(1f - t, 3f));
+            rect.anchoredPosition = new Vector2(0f, Mathf.Lerp(66f, 118f, t));
+            group.alpha = t < 0.72f ? 1f : Mathf.Lerp(1f, 0f, (t - 0.72f) / 0.28f);
+
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        Destroy(burstObject);
+    }
+
     private void RefreshSeatPanels()
     {
         if (seatPanels == null)
@@ -672,14 +840,16 @@ public class GameUIManager : MonoBehaviour
 
             bool isCurrent = i == currentIndex;
             Image panelImage = seatPanels[i].GetComponent<Image>();
-            panelImage.color = isCurrent
-                ? new Color(0.98f, 0.64f, 0.12f, 0.90f)
-                : new Color(0.02f, 0.06f, 0.08f, 0.78f);
+            panelImage.sprite = isCurrent
+                ? GetRoundedRectSprite("seat_panel_active", 256, 96, 20, new Color(0.96f, 0.61f, 0.10f, 0.96f), new Color(1f, 0.90f, 0.34f, 0.92f), 4)
+                : GetRoundedRectSprite("seat_panel", 256, 96, 20, new Color(0.01f, 0.04f, 0.05f, 0.88f), new Color(0.22f, 0.92f, 0.82f, 0.30f), 2);
+            panelImage.color = Color.white;
 
             seatNameTexts[i].text = players[i].playerName;
             seatNameTexts[i].color = isCurrent ? Color.black : Color.white;
             seatCountTexts[i].text = players[i].handCards.Count + " cards";
             seatCountTexts[i].color = isCurrent ? Color.black : new Color(0.78f, 0.96f, 1f, 0.90f);
+            seatPanels[i].localScale = isCurrent ? Vector3.one * 1.04f : Vector3.one;
         }
     }
 
@@ -899,8 +1069,12 @@ public class GameUIManager : MonoBehaviour
         Image image = button.GetComponent<Image>();
         if (image != null)
         {
-            image.color = fill;
+            image.sprite = GetRoundedRectSprite("button_" + ColorKey(fill), 220, 84, 18, fill, new Color(1f, 0.95f, 0.78f, 0.52f), 3);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
         }
+
+        AddShadow(button.gameObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -4f));
 
         ColorBlock colors = button.colors;
         colors.normalColor = Color.white;
@@ -939,6 +1113,159 @@ public class GameUIManager : MonoBehaviour
         rect.pivot = pivot ?? new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
+    }
+
+    private void AddShadow(GameObject target, Color color, Vector2 distance)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        Shadow shadow = target.GetComponent<Shadow>();
+        if (shadow == null)
+        {
+            shadow = target.AddComponent<Shadow>();
+        }
+
+        shadow.effectColor = color;
+        shadow.effectDistance = distance;
+        shadow.useGraphicAlpha = true;
+    }
+
+    private Sprite GetVerticalGradientSprite(string key, Color top, Color bottom)
+    {
+        string spriteKey = key + "_" + ColorKey(top) + "_" + ColorKey(bottom);
+        if (runtimeSprites.TryGetValue(spriteKey, out Sprite sprite))
+        {
+            return sprite;
+        }
+
+        int width = 16;
+        int height = 256;
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+
+        for (int y = 0; y < height; y++)
+        {
+            Color color = Color.Lerp(bottom, top, y / (height - 1f));
+            for (int x = 0; x < width; x++)
+            {
+                texture.SetPixel(x, y, color);
+            }
+        }
+
+        texture.Apply();
+        sprite = Sprite.Create(texture, new Rect(0f, 0f, width, height), new Vector2(0.5f, 0.5f), 100f);
+        runtimeSprites[spriteKey] = sprite;
+        return sprite;
+    }
+
+    private Sprite GetRoundedRectSprite(string key, int width, int height, int radius, Color fill, Color border, int borderWidth)
+    {
+        string spriteKey = key + "_" + width + "x" + height + "_" + radius + "_" + ColorKey(fill) + "_" + ColorKey(border) + "_" + borderWidth;
+        if (runtimeSprites.TryGetValue(spriteKey, out Sprite sprite))
+        {
+            return sprite;
+        }
+
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color clear = new Color(0f, 0f, 0f, 0f);
+
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                bool inside = IsInsideRoundedRect(x, y, width, height, radius);
+                if (!inside)
+                {
+                    texture.SetPixel(x, y, clear);
+                    continue;
+                }
+
+                bool inner = borderWidth <= 0 || IsInsideRoundedRect(
+                    x - borderWidth,
+                    y - borderWidth,
+                    width - borderWidth * 2,
+                    height - borderWidth * 2,
+                    Mathf.Max(1, radius - borderWidth));
+
+                texture.SetPixel(x, y, inner ? fill : border);
+            }
+        }
+
+        texture.Apply();
+        sprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, width, height),
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0,
+            SpriteMeshType.FullRect,
+            new Vector4(radius, radius, radius, radius));
+        runtimeSprites[spriteKey] = sprite;
+        return sprite;
+    }
+
+    private Sprite GetCircleSprite(string key, int size, Color fill, Color border, int borderWidth)
+    {
+        string spriteKey = key + "_" + size + "_" + ColorKey(fill) + "_" + ColorKey(border) + "_" + borderWidth;
+        if (runtimeSprites.TryGetValue(spriteKey, out Sprite sprite))
+        {
+            return sprite;
+        }
+
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.wrapMode = TextureWrapMode.Clamp;
+        Color clear = new Color(0f, 0f, 0f, 0f);
+        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+        float radius = size * 0.5f - 1f;
+        float innerRadius = Mathf.Max(0f, radius - borderWidth);
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float distance = Vector2.Distance(new Vector2(x, y), center);
+                if (distance > radius)
+                {
+                    texture.SetPixel(x, y, clear);
+                }
+                else
+                {
+                    texture.SetPixel(x, y, distance > innerRadius ? border : fill);
+                }
+            }
+        }
+
+        texture.Apply();
+        sprite = Sprite.Create(texture, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f), 100f);
+        runtimeSprites[spriteKey] = sprite;
+        return sprite;
+    }
+
+    private bool IsInsideRoundedRect(int x, int y, int width, int height, int radius)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return false;
+        }
+
+        int clampedRadius = Mathf.Min(radius, Mathf.Min(width, height) / 2);
+        int cx = Mathf.Clamp(x, clampedRadius, width - clampedRadius - 1);
+        int cy = Mathf.Clamp(y, clampedRadius, height - clampedRadius - 1);
+        int dx = x - cx;
+        int dy = y - cy;
+        return dx * dx + dy * dy <= clampedRadius * clampedRadius;
+    }
+
+    private string ColorKey(Color color)
+    {
+        return Mathf.RoundToInt(color.r * 255f) + "_" +
+               Mathf.RoundToInt(color.g * 255f) + "_" +
+               Mathf.RoundToInt(color.b * 255f) + "_" +
+               Mathf.RoundToInt(color.a * 255f);
     }
 
     private Color GetUITextColor(CardColor color)

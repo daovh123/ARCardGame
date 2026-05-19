@@ -98,6 +98,7 @@ public class MainMenuManager : MonoBehaviour
         RectTransform tableGlow = CreatePanel(canvasTransform, "Runtime_MenuTableGlow", new Color(0.02f, 0.31f, 0.25f, 0.80f));
         tableGlow.SetSiblingIndex(1);
         SetRect(tableGlow, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -78f), new Vector2(980f, 430f));
+        AddShadow(tableGlow.gameObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -10f));
 
         Outline outline = tableGlow.gameObject.AddComponent<Outline>();
         outline.effectColor = new Color(0.25f, 1f, 0.82f, 0.24f);
@@ -106,6 +107,7 @@ public class MainMenuManager : MonoBehaviour
         RectTransform actionPanel = CreatePanel(canvasTransform, "Runtime_MenuActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.78f));
         actionPanel.SetSiblingIndex(2);
         SetRect(actionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -80f), new Vector2(460f, 300f));
+        AddShadow(actionPanel.gameObject, new Color(0f, 0f, 0f, 0.46f), new Vector2(0f, -8f));
     }
 
     private void BuildCardPreview(Transform canvasTransform)
@@ -146,6 +148,7 @@ public class MainMenuManager : MonoBehaviour
             image.raycastTarget = false;
             SetRect(image.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), positions[i], new Vector2(150f, 220f));
             image.rectTransform.localRotation = Quaternion.Euler(0f, 0f, rotations[i]);
+            AddShadow(image.gameObject, new Color(0f, 0f, 0f, 0.50f), new Vector2(0f, -8f));
             image.transform.SetSiblingIndex(3 + i);
         }
     }
@@ -171,6 +174,7 @@ public class MainMenuManager : MonoBehaviour
 
         StyleText(title, 58, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
         SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -162f), new Vector2(900f, 82f));
+        AddShadow(title.gameObject, new Color(0f, 0f, 0f, 0.62f), new Vector2(0f, -5f));
         title.transform.SetAsLastSibling();
     }
 
@@ -237,6 +241,17 @@ public class MainMenuManager : MonoBehaviour
             image.color = fill;
         }
 
+        AddShadow(button.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -5f));
+
+        Outline outline = button.GetComponent<Outline>();
+        if (outline == null)
+        {
+            outline = button.gameObject.AddComponent<Outline>();
+        }
+
+        outline.effectColor = new Color(1f, 0.92f, 0.62f, 0.28f);
+        outline.effectDistance = new Vector2(2f, -2f);
+
         ColorBlock colors = button.colors;
         colors.normalColor = Color.white;
         colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
@@ -267,6 +282,24 @@ public class MainMenuManager : MonoBehaviour
         text.alignment = alignment;
         text.fontStyle = style;
         text.raycastTarget = false;
+    }
+
+    private void AddShadow(GameObject target, Color color, Vector2 distance)
+    {
+        if (target == null)
+        {
+            return;
+        }
+
+        Shadow shadow = target.GetComponent<Shadow>();
+        if (shadow == null)
+        {
+            shadow = target.AddComponent<Shadow>();
+        }
+
+        shadow.effectColor = color;
+        shadow.effectDistance = distance;
+        shadow.useGraphicAlpha = true;
     }
 
     private void SetRect(RectTransform rect, Vector2 anchorMin, Vector2 anchorMax, Vector2 position, Vector2 size, Vector2? pivot = null)
