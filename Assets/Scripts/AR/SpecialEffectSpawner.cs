@@ -22,9 +22,6 @@ public class SpecialEffectSpawner : MonoBehaviour
     {
         switch (card.type)
         {
-            case CardType.Skip:
-                SpawnTextEffect("SKIP", Color.white);
-                break;
 
             case CardType.Block:
                 SpawnTextEffect("BLOCK", Color.red);

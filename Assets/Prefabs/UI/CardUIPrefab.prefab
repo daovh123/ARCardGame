@@ -92,8 +92,8 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 32
-  m_fontSizeBase: 32
+  m_fontSize: 22
+  m_fontSizeBase: 22
   m_fontWeight: 400
   m_enableAutoSizing: 0
   m_fontSizeMin: 18
@@ -175,7 +175,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 190, y: 250}
+  m_SizeDelta: {x: 150, y: 220}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6321041895809351703
 CanvasRenderer:
@@ -206,8 +206,8 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_Sprite: {fileID: 10905, guid: 0000000000000000f000000000000000, type: 0}
-  m_Type: 1
-  m_PreserveAspect: 0
+  m_Type: 0
+  m_PreserveAspect: 1
   m_FillCenter: 1
   m_FillMethod: 4
   m_FillAmount: 1
@@ -271,6 +271,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 67633674797a48d42b6daea57943ac7b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CardUI
-  cardNameText: {fileID: 2550161209876338393}
+  cardImage: {fileID: 8545601076304630500}
+  fallbackText: {fileID: 2550161209876338393}
   button: {fileID: 1165316168638178891}
-  backgroundImage: {fileID: 8545601076304630500}

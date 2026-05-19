@@ -13,7 +13,6 @@ public enum CardColor
 public enum CardType
 {
     Number,
-    Skip,
     Reverse,
     DrawTwo,
     Block,

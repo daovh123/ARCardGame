@@ -4,23 +4,47 @@ using TMPro;
 
 public class CardUI : MonoBehaviour
 {
-    public TMP_Text cardNameText;
+    [Header("UI References")]
+    public Image cardImage;
+    public TMP_Text fallbackText;
     public Button button;
-    public Image backgroundImage;
+
+    private static CardSpriteDatabase database;
 
     private int handIndex;
     private System.Action<int> onClick;
+
+    private void Awake()
+    {
+        LoadDatabase();
+    }
+
+    private void LoadDatabase()
+    {
+        if (database == null)
+        {
+            database = Resources.Load<CardSpriteDatabase>("CardSpriteDatabase");
+        }
+    }
 
     public void Setup(CardData card, int handIndex, System.Action<int> onClick)
     {
         this.handIndex = handIndex;
         this.onClick = onClick;
 
-        cardNameText.text = card.GetDisplayName();
+        LoadDatabase();
 
-        if (backgroundImage != null)
+        Sprite sprite = database != null ? database.GetSprite(card) : null;
+
+        if (cardImage != null && sprite != null)
         {
-            backgroundImage.color = GetColor(card.color);
+            cardImage.sprite = sprite;
+            cardImage.color = Color.white;
+        }
+
+        if (fallbackText != null)
+        {
+            fallbackText.text = sprite == null ? card.GetDisplayName() : "";
         }
 
         button.onClick.RemoveAllListeners();
@@ -28,26 +52,5 @@ public class CardUI : MonoBehaviour
         {
             this.onClick?.Invoke(this.handIndex);
         });
-    }
-
-    private Color GetColor(CardColor color)
-    {
-        switch (color)
-        {
-            case CardColor.Red:
-                return new Color(0.9f, 0.2f, 0.2f);
-
-            case CardColor.Blue:
-                return new Color(0.2f, 0.4f, 0.9f);
-
-            case CardColor.Green:
-                return new Color(0.2f, 0.7f, 0.3f);
-
-            case CardColor.Yellow:
-                return new Color(0.95f, 0.8f, 0.2f);
-
-            default:
-                return Color.white;
-        }
     }
 }

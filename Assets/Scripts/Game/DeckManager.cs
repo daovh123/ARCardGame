@@ -11,38 +11,37 @@ public class DeckManager
         get { return deck.Count; }
     }
 
-public void CreateDeck()
-{
-    deck.Clear();
-    nextCardId = 0;
-
-    CardColor[] colors =
+    public void CreateDeck()
     {
-        CardColor.Red,
-        CardColor.Blue,
-        CardColor.Green,
-        CardColor.Yellow
-    };
+        deck.Clear();
+        nextCardId = 0;
 
-    foreach (CardColor color in colors)
-    {
-        for (int number = 1; number <= 5; number++)
+        CardColor[] colors =
         {
-            deck.Add(new CardData(nextCardId++, color, CardType.Number, number));
+            CardColor.Red,
+            CardColor.Blue,
+            CardColor.Green,
+            CardColor.Yellow
+        };
+
+        foreach (CardColor color in colors)
+        {
+            for (int number = 1; number <= 5; number++)
+            {
+                deck.Add(new CardData(nextCardId++, color, CardType.Number, number));
+            }
+
+            deck.Add(new CardData(nextCardId++, color, CardType.Block));
+            deck.Add(new CardData(nextCardId++, color, CardType.Reverse));
+            deck.Add(new CardData(nextCardId++, color, CardType.DrawTwo));
         }
 
-        deck.Add(new CardData(nextCardId++, color, CardType.Skip));
-        deck.Add(new CardData(nextCardId++, color, CardType.Block));
-        deck.Add(new CardData(nextCardId++, color, CardType.Reverse));
-        deck.Add(new CardData(nextCardId++, color, CardType.DrawTwo));
+        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
+        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
+
+        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
+        deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
     }
-
-    deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
-    deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.ChangeColor));
-
-    deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
-    deck.Add(new CardData(nextCardId++, CardColor.Wild, CardType.DrawFour));
-}
 
     public void Shuffle()
     {

@@ -229,11 +229,10 @@ public void PlayCard(int handCardIndex)
 
         private void ApplyCardEffect(CardData card)
     {
-        if (card.type == CardType.Skip || card.type == CardType.Block)
+        if (card.type == CardType.Block)
         {
             MoveToNextPlayer();
             MoveToNextPlayer();
-
             if (card.type == CardType.Block)
             {
                 Debug.Log("Block effect activated.");
