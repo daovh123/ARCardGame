@@ -11,6 +11,7 @@ public class MainMenuManager : MonoBehaviour
 
     private bool themeBuilt;
     private static CardSpriteDatabase cardDatabase;
+    private Button tienLenButton;
 
     private void Start()
     {
@@ -27,12 +28,22 @@ public class MainMenuManager : MonoBehaviour
     {
         Debug.Log("Play Offline clicked");
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        GameModeSelection.CurrentMode = GameMode.Uno;
+        SceneManager.LoadScene("GameScene");
+    }
+
+    private void OnTienLenClicked()
+    {
+        Debug.Log("Tien Len clicked");
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        GameModeSelection.CurrentMode = GameMode.TienLenMienNam;
         SceneManager.LoadScene("GameScene");
     }
 
     private void OnMultiplayerClicked()
     {
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        GameModeSelection.CurrentMode = GameMode.Uno;
         SceneManager.LoadScene("LobbyScene");
     }
 
@@ -180,17 +191,42 @@ public class MainMenuManager : MonoBehaviour
 
     private void StyleMenuButtons(Transform canvasTransform)
     {
-        StyleButton(playOfflineButton, new Color(1f, 0.76f, 0.18f, 1f), new Color(0.03f, 0.04f, 0.05f, 1f), "Play Offline");
+        if (tienLenButton == null)
+        {
+            tienLenButton = CreateRuntimeButton(canvasTransform, "Runtime_TienLenButton", "Tien Len Mien Nam");
+            tienLenButton.onClick.AddListener(OnTienLenClicked);
+        }
+
+        StyleButton(playOfflineButton, new Color(1f, 0.76f, 0.18f, 1f), new Color(0.03f, 0.04f, 0.05f, 1f), "UNO Offline");
+        StyleButton(tienLenButton, new Color(0.04f, 0.56f, 0.34f, 1f), Color.white, "Tien Len Mien Nam");
         StyleButton(multiplayerButton, new Color(0.08f, 0.48f, 0.92f, 1f), Color.white, "Multiplayer");
         StyleButton(quitButton, new Color(0.12f, 0.18f, 0.20f, 0.98f), Color.white, "Quit");
 
-        SetRect(playOfflineButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 6f), new Vector2(360f, 66f));
-        SetRect(multiplayerButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -76f), new Vector2(360f, 66f));
-        SetRect(quitButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -158f), new Vector2(360f, 66f));
+        SetRect(playOfflineButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(360f, 62f));
+        SetRect(tienLenButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -36f), new Vector2(360f, 62f));
+        SetRect(multiplayerButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(360f, 62f));
+        SetRect(quitButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -184f), new Vector2(360f, 62f));
 
         playOfflineButton.transform.SetAsLastSibling();
+        tienLenButton.transform.SetAsLastSibling();
         multiplayerButton.transform.SetAsLastSibling();
         quitButton.transform.SetAsLastSibling();
+    }
+
+    private Button CreateRuntimeButton(Transform parent, string name, string label)
+    {
+        GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+
+        GameObject labelObject = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        labelObject.transform.SetParent(buttonObject.transform, false);
+        SetRect(labelObject.transform as RectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        TMP_Text text = labelObject.GetComponent<TMP_Text>();
+        text.text = label;
+        StyleText(text, 27, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+
+        return buttonObject.GetComponent<Button>();
     }
 
     private RectTransform CreatePanel(Transform parent, string name, Color color)

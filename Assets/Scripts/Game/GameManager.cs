@@ -30,6 +30,11 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     private void Awake()
     {
+        if (GameModeSelection.CurrentMode != GameMode.Uno)
+        {
+            return;
+        }
+
         if (!PhotonNetwork.InRoom)
         {
             StartOfflineGame();
@@ -38,6 +43,11 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     private void Start()
     {
+        if (GameModeSelection.CurrentMode != GameMode.Uno)
+        {
+            return;
+        }
+
         if (PhotonNetwork.InRoom)
         {
             if (PhotonNetwork.IsMasterClient)

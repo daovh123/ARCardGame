@@ -72,6 +72,13 @@ public class GameUIManager : MonoBehaviour
 
     private void Start()
     {
+        if (GameModeSelection.CurrentMode == GameMode.TienLenMienNam)
+        {
+            LaunchTienLenMode();
+            enabled = false;
+            return;
+        }
+
         BuildRuntimeTheme();
 
         drawButton.onClick.AddListener(OnDrawButtonClicked);
@@ -82,6 +89,16 @@ public class GameUIManager : MonoBehaviour
         gameOverPanel.SetActive(false);
 
         RefreshUI();
+    }
+
+    private void LaunchTienLenMode()
+    {
+        GameObject runtimeObject = new GameObject("TienLenRuntime");
+        TienLenGameManager tienLenManager = runtimeObject.AddComponent<TienLenGameManager>();
+        TienLenUIManager tienLenUI = runtimeObject.AddComponent<TienLenUIManager>();
+
+        tienLenManager.StartGame();
+        tienLenUI.Initialize(tienLenManager);
     }
 
     public void RefreshUI()
