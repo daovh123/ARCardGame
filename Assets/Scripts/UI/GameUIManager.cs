@@ -30,6 +30,8 @@ public class GameUIManager : MonoBehaviour
 
     private Image topCardImage;
     private Image drawPileImage;
+    private RectTransform currentColorBadge;
+    private TMP_Text currentColorBadgeText;
     private GameObject colorChoicePanel;
     private Button unoButton;
     private RectTransform[] seatPanels;
@@ -41,6 +43,13 @@ public class GameUIManager : MonoBehaviour
     private Canvas rootCanvas;
     private RectTransform canvasRect;
     private int drawAnimationSequence;
+    private RectTransform toastPanel;
+    private TMP_Text toastTitleText;
+    private TMP_Text toastBodyText;
+    private CanvasGroup toastGroup;
+    private Coroutine toastRoutine;
+    private string lastToastMessage = "";
+    private int lastAnnouncedTurnIndex = -1;
     private readonly Dictionary<string, Sprite> runtimeSprites = new Dictionary<string, Sprite>();
 
     private void OnEnable()
@@ -48,6 +57,8 @@ public class GameUIManager : MonoBehaviour
         GameEvents.OnCardDrawn += HandleCardDrawnEvent;
         GameEvents.OnCardPlayed += HandleCardPlayedEvent;
         GameEvents.OnSpecialCardPlayed += HandleSpecialCardPlayedEvent;
+        GameEvents.OnTurnChanged += HandleTurnChangedEvent;
+        GameEvents.OnGameOver += HandleGameOverEvent;
     }
 
     private void OnDisable()
@@ -55,6 +66,8 @@ public class GameUIManager : MonoBehaviour
         GameEvents.OnCardDrawn -= HandleCardDrawnEvent;
         GameEvents.OnCardPlayed -= HandleCardPlayedEvent;
         GameEvents.OnSpecialCardPlayed -= HandleSpecialCardPlayedEvent;
+        GameEvents.OnTurnChanged -= HandleTurnChangedEvent;
+        GameEvents.OnGameOver -= HandleGameOverEvent;
     }
 
     private void Start()
@@ -95,21 +108,25 @@ public class GameUIManager : MonoBehaviour
             ? "YOUR TURN - " + gameManager.GetCurrentPlayerName()
             : "TURN - " + gameManager.GetCurrentPlayerName();
         messageText.text = gameManager.GetLastMessage();
+        MaybeShowMessageToast(messageText.text);
 
         bool pendingDrawPenalty = gameManager.HasPendingDrawPenalty();
 
         if (currentColorText != null)
         {
             currentColorText.text = pendingDrawPenalty
-                ? "STACK " + gameManager.GetPendingDrawStackLabel().ToUpperInvariant() + " OR DRAW " + gameManager.GetPendingDrawPenalty()
+                ? "STACK " + gameManager.GetPendingDrawStackLabel().ToUpperInvariant() + " OR DRAW " + gameManager.GetPendingDrawPenalty() + " | COLOR " + gameManager.GetCurrentColor().ToString().ToUpperInvariant()
                 : "COLOR " + gameManager.GetCurrentColor().ToString().ToUpperInvariant();
             currentColorText.color = pendingDrawPenalty ? new Color(1f, 0.78f, 0.22f) : GetUITextColor(gameManager.GetCurrentColor());
         }
+
+        UpdateCurrentColorBadge(pendingDrawPenalty);
 
         SetButtonLabel(drawButton, pendingDrawPenalty ? "DRAW +" + gameManager.GetPendingDrawPenalty() : "DRAW");
         drawButton.interactable = isLocalTurn && !isGameOver;
 
         List<CardData> handCards = gameManager.GetCurrentPlayerHand();
+        AdjustHandLayout(handCards.Count);
 
         if ((!isLocalTurn || isGameOver || pendingWildCardIndex < 0 || pendingWildCardIndex >= handCards.Count) && colorChoicePanel != null)
         {
@@ -142,6 +159,7 @@ public class GameUIManager : MonoBehaviour
         if (isGameOver)
         {
             gameOverPanel.SetActive(true);
+            gameOverPanel.transform.SetAsLastSibling();
             winnerText.text = gameManager.GetLastMessage();
         }
         else
@@ -169,11 +187,14 @@ public class GameUIManager : MonoBehaviour
         LoadCardDatabase();
         ConfigureCanvas(canvas);
         BuildBackground(canvas.transform);
+        BuildTopHud(canvas.transform);
         BuildTopCardDisplay(canvas.transform);
         BuildSeatPanels(canvas.transform);
+        BuildActionRail(canvas.transform);
         StyleExistingLayout();
         BuildUnoButton(canvas.transform);
         BuildColorChoicePanel(canvas.transform);
+        BuildToastPanel(canvas.transform);
         StyleGameOverPanel();
 
         themeBuilt = true;
@@ -226,7 +247,7 @@ public class GameUIManager : MonoBehaviour
         frameImage.sprite = GetRoundedRectSprite("table_frame", 256, 128, 34, new Color(0.30f, 0.16f, 0.07f, 1f), new Color(0.82f, 0.55f, 0.24f, 1f), 7);
         frameImage.type = Image.Type.Sliced;
         frame.SetSiblingIndex(1);
-        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 22f), new Vector2(1000f, 430f));
+        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(1030f, 416f));
         AddShadow(frame.gameObject, new Color(0f, 0f, 0f, 0.48f), new Vector2(0f, -10f));
 
         RectTransform table = CreatePanel(canvasTransform, "Runtime_TableSurface", Color.white);
@@ -234,11 +255,32 @@ public class GameUIManager : MonoBehaviour
         tableImage.sprite = GetRoundedRectSprite("felt_surface", 256, 128, 28, new Color(0.02f, 0.32f, 0.25f, 0.97f), new Color(0.18f, 0.92f, 0.80f, 0.58f), 4);
         tableImage.type = Image.Type.Sliced;
         table.SetSiblingIndex(2);
-        SetRect(table, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 22f), new Vector2(900f, 360f));
+        SetRect(table, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(910f, 332f));
 
         Outline tableOutline = table.gameObject.AddComponent<Outline>();
         tableOutline.effectColor = new Color(0.20f, 0.95f, 0.85f, 0.28f);
         tableOutline.effectDistance = new Vector2(4f, -4f);
+    }
+
+    private void BuildTopHud(Transform canvasTransform)
+    {
+        RectTransform hud = CreatePanel(canvasTransform, "Runtime_TopHud", Color.white);
+        Image hudImage = hud.GetComponent<Image>();
+        hudImage.sprite = GetRoundedRectSprite("top_hud", 320, 108, 18, new Color(0.01f, 0.04f, 0.05f, 0.58f), new Color(0.20f, 0.95f, 0.86f, 0.20f), 2);
+        hudImage.type = Image.Type.Sliced;
+        hud.SetSiblingIndex(3);
+        SetRect(hud, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -82f), new Vector2(820f, 118f));
+        AddShadow(hud.gameObject, new Color(0f, 0f, 0f, 0.28f), new Vector2(0f, -4f));
+    }
+
+    private void BuildActionRail(Transform canvasTransform)
+    {
+        RectTransform rail = CreatePanel(canvasTransform, "Runtime_ActionRail", Color.white);
+        Image railImage = rail.GetComponent<Image>();
+        railImage.sprite = GetRoundedRectSprite("action_rail", 180, 170, 20, new Color(0.01f, 0.04f, 0.05f, 0.54f), new Color(1f, 0.80f, 0.32f, 0.24f), 2);
+        railImage.type = Image.Type.Sliced;
+        SetRect(rail, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -54f), new Vector2(184f, 160f));
+        AddShadow(rail.gameObject, new Color(0f, 0f, 0f, 0.32f), new Vector2(0f, -5f));
     }
 
     private void BuildTopCardDisplay(Transform canvasTransform)
@@ -248,7 +290,7 @@ public class GameUIManager : MonoBehaviour
         topPanelImage.sprite = GetRoundedRectSprite("discard_panel", 256, 128, 18, new Color(0.01f, 0.04f, 0.05f, 0.82f), new Color(1f, 0.82f, 0.32f, 0.28f), 3);
         topPanelImage.type = Image.Type.Sliced;
         AddShadow(topPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -6f));
-        SetRect(topPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 22f), new Vector2(360f, 270f));
+        SetRect(topPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(360f, 270f));
 
         topCardImage = CreateImage(topPanel, "TopCardImage");
         topCardImage.preserveAspect = true;
@@ -270,6 +312,16 @@ public class GameUIManager : MonoBehaviour
 
         TMP_Text discardLabel = CreateLabel(topPanel, "DISCARD", 21, new Color(1f, 0.82f, 0.36f, 0.95f));
         SetRect(discardLabel.rectTransform, new Vector2(0.55f, 0.84f), new Vector2(0.95f, 0.98f), Vector2.zero, Vector2.zero);
+
+        currentColorBadge = CreatePanel(topPanel, "CurrentColorBadge", Color.white);
+        Image badgeImage = currentColorBadge.GetComponent<Image>();
+        badgeImage.sprite = GetRoundedRectSprite("current_color_badge", 256, 64, 16, new Color(0.08f, 0.40f, 0.92f, 0.96f), new Color(1f, 1f, 1f, 0.72f), 3);
+        badgeImage.type = Image.Type.Sliced;
+        SetRect(currentColorBadge, new Vector2(0.5f, 0.04f), new Vector2(0.5f, 0.04f), new Vector2(0f, 0f), new Vector2(270f, 38f));
+        AddShadow(currentColorBadge.gameObject, new Color(0f, 0f, 0f, 0.40f), new Vector2(0f, -3f));
+
+        currentColorBadgeText = CreateLabel(currentColorBadge, "CURRENT COLOR", 16, Color.white);
+        currentColorBadgeText.fontStyle = FontStyles.Bold;
     }
 
     private void BuildDrawPileStack(Transform parent)
@@ -304,10 +356,10 @@ public class GameUIManager : MonoBehaviour
 
         Vector2[] positions =
         {
-            new Vector2(0f, -230f),
-            new Vector2(-575f, 38f),
-            new Vector2(0f, 280f),
-            new Vector2(575f, 38f)
+            new Vector2(0f, -214f),
+            new Vector2(-610f, 52f),
+            new Vector2(0f, 270f),
+            new Vector2(610f, 52f)
         };
 
         for (int i = 0; i < seatPanels.Length; i++)
@@ -353,7 +405,7 @@ public class GameUIManager : MonoBehaviour
     private void StyleExistingLayout()
     {
         RectTransform handRect = handPanel as RectTransform;
-        SetRect(handRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 126f), new Vector2(900f, 188f));
+        SetRect(handRect, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 112f), new Vector2(940f, 178f));
 
         Image handImage = handPanel.GetComponent<Image>();
         if (handImage == null)
@@ -396,14 +448,15 @@ public class GameUIManager : MonoBehaviour
             playerStatusText.gameObject.SetActive(false);
         }
 
-        StyleButton(drawButton, new Color(1f, 0.74f, 0.18f, 1f), new Color(0.05f, 0.08f, 0.10f, 1f));
-        SetRect(drawButton.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -22f), new Vector2(148f, 54f));
+        StyleButton(drawButton, new Color(1f, 0.82f, 0.12f, 1f), new Color(0.05f, 0.08f, 0.10f, 1f));
+        StyleDrawButton();
+        SetRect(drawButton.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -18f), new Vector2(148f, 56f));
 
         StyleButton(restartButton, new Color(0.05f, 0.16f, 0.20f, 0.96f), Color.white);
-        SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-88f, -32f), new Vector2(140f, 44f));
+        SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-92f, -34f), new Vector2(144f, 48f));
 
         StyleButton(backMenuButton, new Color(0.05f, 0.16f, 0.20f, 0.96f), Color.white);
-        SetRect(backMenuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(88f, -32f), new Vector2(140f, 44f));
+        SetRect(backMenuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(92f, -34f), new Vector2(144f, 48f));
     }
 
     private void BuildUnoButton(Transform canvasTransform)
@@ -412,7 +465,7 @@ public class GameUIManager : MonoBehaviour
         buttonObject.transform.SetParent(canvasTransform, false);
 
         RectTransform rect = buttonObject.GetComponent<RectTransform>();
-        SetRect(rect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -86f), new Vector2(148f, 54f), new Vector2(0.5f, 0.5f));
+        SetRect(rect, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -84f), new Vector2(148f, 56f), new Vector2(0.5f, 0.5f));
 
         Image image = buttonObject.GetComponent<Image>();
         image.sprite = GetRoundedRectSprite("uno_button", 220, 84, 18, new Color(0.86f, 0.08f, 0.12f, 0.98f), new Color(1f, 0.72f, 0.26f, 0.80f), 4);
@@ -436,7 +489,10 @@ public class GameUIManager : MonoBehaviour
         SetRect(rect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(610f, 226f));
 
         Image panelImage = colorChoicePanel.GetComponent<Image>();
-        panelImage.color = new Color(0.02f, 0.04f, 0.06f, 0.96f);
+        panelImage.sprite = GetRoundedRectSprite("color_choice_panel", 320, 140, 24, new Color(0.02f, 0.04f, 0.06f, 0.96f), new Color(1f, 0.82f, 0.36f, 0.50f), 4);
+        panelImage.type = Image.Type.Sliced;
+        panelImage.color = Color.white;
+        AddShadow(colorChoicePanel, new Color(0f, 0f, 0f, 0.55f), new Vector2(0f, -8f));
 
         TMP_Text title = CreateLabel(colorChoicePanel.transform, "CHOOSE COLOR", 34, new Color(1f, 0.82f, 0.36f, 1f));
         SetRect(title.rectTransform, new Vector2(0.06f, 0.68f), new Vector2(0.94f, 0.94f), Vector2.zero, Vector2.zero);
@@ -450,6 +506,31 @@ public class GameUIManager : MonoBehaviour
         colorChoicePanel.SetActive(false);
     }
 
+    private void BuildToastPanel(Transform canvasTransform)
+    {
+        toastPanel = CreatePanel(canvasTransform, "Runtime_ToastPanel", Color.white);
+        Image image = toastPanel.GetComponent<Image>();
+        image.sprite = GetRoundedRectSprite("toast_panel", 320, 120, 22, new Color(0.01f, 0.04f, 0.05f, 0.94f), new Color(1f, 0.78f, 0.26f, 0.62f), 4);
+        image.type = Image.Type.Sliced;
+        SetRect(toastPanel, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -164f), new Vector2(760f, 86f));
+        AddShadow(toastPanel.gameObject, new Color(0f, 0f, 0f, 0.46f), new Vector2(0f, -6f));
+
+        toastGroup = toastPanel.gameObject.AddComponent<CanvasGroup>();
+        toastGroup.alpha = 0f;
+        toastGroup.blocksRaycasts = false;
+        toastGroup.interactable = false;
+
+        toastTitleText = CreateLabel(toastPanel, "STATUS", 24, new Color(1f, 0.82f, 0.34f, 1f));
+        SetRect(toastTitleText.rectTransform, new Vector2(0.04f, 0.52f), new Vector2(0.96f, 0.92f), Vector2.zero, Vector2.zero);
+        toastTitleText.fontStyle = FontStyles.Bold;
+
+        toastBodyText = CreateLabel(toastPanel, "", 19, Color.white);
+        SetRect(toastBodyText.rectTransform, new Vector2(0.05f, 0.10f), new Vector2(0.95f, 0.54f), Vector2.zero, Vector2.zero);
+        toastBodyText.fontStyle = FontStyles.Normal;
+
+        toastPanel.gameObject.SetActive(false);
+    }
+
     private void CreateColorButton(Transform parent, CardColor color, string labelText, Vector2 position, Color fill, Color textColor)
     {
         GameObject buttonObject = new GameObject(labelText + "Button", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -459,7 +540,9 @@ public class GameUIManager : MonoBehaviour
         SetRect(rect, new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.42f), position, new Vector2(124f, 70f));
 
         Image image = buttonObject.GetComponent<Image>();
-        image.color = fill;
+        image.sprite = GetRoundedRectSprite("color_button_" + labelText, 180, 96, 18, fill, new Color(1f, 1f, 1f, 0.76f), 4);
+        image.type = Image.Type.Sliced;
+        image.color = Color.white;
 
         Button button = buttonObject.GetComponent<Button>();
         CardColor chosenColor = color;
@@ -482,11 +565,22 @@ public class GameUIManager : MonoBehaviour
         Image image = gameOverPanel.GetComponent<Image>();
         if (image != null)
         {
-            image.color = new Color(0.02f, 0.04f, 0.06f, 0.96f);
+            image.sprite = GetRoundedRectSprite("game_over_panel", 360, 220, 28, new Color(0.02f, 0.04f, 0.06f, 0.97f), new Color(1f, 0.78f, 0.26f, 0.74f), 5);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
         }
 
-        StyleText(winnerText, 48, new Color(1f, 0.82f, 0.36f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
+        AddShadow(gameOverPanel, new Color(0f, 0f, 0f, 0.62f), new Vector2(0f, -10f));
+
+        TMP_Text title = CreateLabel(gameOverPanel.transform, "MATCH COMPLETE", 34, new Color(1f, 0.82f, 0.36f, 1f));
+        SetRect(title.rectTransform, new Vector2(0.08f, 0.76f), new Vector2(0.92f, 0.94f), Vector2.zero, Vector2.zero);
+        title.fontStyle = FontStyles.Bold;
+
+        StyleText(winnerText, 36, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+        SetRect(winnerText.rectTransform, new Vector2(0.08f, 0.38f), new Vector2(0.92f, 0.72f), Vector2.zero, Vector2.zero);
+
         StyleButton(gameOverRestartButton, new Color(1f, 0.74f, 0.18f, 1f), Color.black);
+        SetRect(gameOverRestartButton.transform as RectTransform, new Vector2(0.5f, 0.18f), new Vector2(0.5f, 0.18f), Vector2.zero, new Vector2(260f, 62f));
     }
 
     private void UpdateTopCardVisual(CardData card)
@@ -511,6 +605,63 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
+    private void UpdateCurrentColorBadge(bool pendingDrawPenalty)
+    {
+        if (currentColorBadge == null || currentColorBadgeText == null || gameManager == null)
+        {
+            return;
+        }
+
+        CardColor currentColor = gameManager.GetCurrentColor();
+        Color fill = GetUITextColor(currentColor);
+        Color textColor = currentColor == CardColor.Yellow ? new Color(0.04f, 0.04f, 0.04f, 1f) : Color.white;
+
+        Image image = currentColorBadge.GetComponent<Image>();
+        if (image != null)
+        {
+            image.sprite = GetRoundedRectSprite(
+                "current_color_badge_" + currentColor,
+                256,
+                64,
+                16,
+                fill,
+                pendingDrawPenalty ? new Color(1f, 0.78f, 0.22f, 0.95f) : new Color(1f, 1f, 1f, 0.78f),
+                pendingDrawPenalty ? 5 : 3);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+        }
+
+        currentColorBadgeText.text = pendingDrawPenalty
+            ? "COLOR " + currentColor.ToString().ToUpperInvariant() + "  |  +" + gameManager.GetPendingDrawPenalty()
+            : "CURRENT COLOR: " + currentColor.ToString().ToUpperInvariant();
+        currentColorBadgeText.color = textColor;
+    }
+
+    private void AdjustHandLayout(int handCount)
+    {
+        HorizontalLayoutGroup layout = handPanel != null ? handPanel.GetComponent<HorizontalLayoutGroup>() : null;
+        if (layout == null)
+        {
+            return;
+        }
+
+        if (handCount > 13)
+        {
+            layout.spacing = 4f;
+            layout.padding = new RectOffset(10, 10, 6, 6);
+        }
+        else if (handCount > 9)
+        {
+            layout.spacing = 6f;
+            layout.padding = new RectOffset(12, 12, 6, 6);
+        }
+        else
+        {
+            layout.spacing = 10f;
+            layout.padding = new RectOffset(16, 16, 6, 6);
+        }
+    }
+
     private void ConfigureHandCardObject(GameObject cardObject, int handCount, bool playable)
     {
         if (cardObject == null)
@@ -525,19 +676,9 @@ public class GameUIManager : MonoBehaviour
             layoutElement = cardObject.AddComponent<LayoutElement>();
         }
 
-        float width = 102f;
-        if (handCount > 11)
-        {
-            width = 68f;
-        }
-        else if (handCount > 9)
-        {
-            width = 78f;
-        }
-        else if (handCount > 7)
-        {
-            width = 88f;
-        }
+        float spacing = handCount > 13 ? 4f : handCount > 9 ? 6f : 10f;
+        float availableWidth = 900f - Mathf.Max(0, handCount - 1) * spacing;
+        float width = handCount > 0 ? Mathf.Clamp(availableWidth / handCount, 54f, 102f) : 102f;
 
         float height = width * 1.48f;
         layoutElement.preferredWidth = width;
@@ -559,6 +700,52 @@ public class GameUIManager : MonoBehaviour
 
         shadow.effectColor = playable ? new Color(0f, 0f, 0f, 0.54f) : new Color(0f, 0f, 0f, 0.30f);
         shadow.effectDistance = new Vector2(0f, -4f);
+
+        Outline outline = cardObject.GetComponent<Outline>();
+        if (outline == null)
+        {
+            outline = cardObject.AddComponent<Outline>();
+        }
+
+        outline.effectColor = playable ? new Color(1f, 0.86f, 0.24f, 0.78f) : new Color(0f, 0f, 0f, 0.30f);
+        outline.effectDistance = playable ? new Vector2(3f, -3f) : new Vector2(1f, -1f);
+
+        SetInvalidCardOverlay(cardObject, !playable);
+    }
+
+    private void SetInvalidCardOverlay(GameObject cardObject, bool show)
+    {
+        if (cardObject == null)
+        {
+            return;
+        }
+
+        Transform existing = cardObject.transform.Find("Runtime_InvalidCardOverlay");
+        GameObject overlayObject = existing != null ? existing.gameObject : null;
+
+        if (overlayObject == null)
+        {
+            overlayObject = new GameObject("Runtime_InvalidCardOverlay", typeof(RectTransform), typeof(Image));
+            overlayObject.transform.SetParent(cardObject.transform, false);
+
+            RectTransform overlayRect = overlayObject.GetComponent<RectTransform>();
+            overlayRect.anchorMin = Vector2.zero;
+            overlayRect.anchorMax = Vector2.one;
+            overlayRect.offsetMin = Vector2.zero;
+            overlayRect.offsetMax = Vector2.zero;
+
+            Image overlayImage = overlayObject.GetComponent<Image>();
+            overlayImage.sprite = GetRoundedRectSprite("invalid_card_overlay", 120, 180, 10, new Color(0f, 0f, 0f, 0.52f), new Color(0f, 0f, 0f, 0.12f), 1);
+            overlayImage.type = Image.Type.Sliced;
+            overlayImage.raycastTarget = false;
+
+            TMP_Text mark = CreateLabel(overlayObject.transform, "LOCKED", 18, new Color(1f, 1f, 1f, 0.82f));
+            mark.fontStyle = FontStyles.Bold;
+            SetRect(mark.rectTransform, new Vector2(0.08f, 0.40f), new Vector2(0.92f, 0.60f), Vector2.zero, Vector2.zero);
+        }
+
+        overlayObject.SetActive(show);
+        overlayObject.transform.SetAsLastSibling();
     }
 
     private void HandleCardDrawnEvent(int playerIndex)
@@ -579,6 +766,11 @@ public class GameUIManager : MonoBehaviour
         Vector2 start = GetRectScreenCenter(drawPileImage.rectTransform);
         Vector2 end = GetPlayerTargetScreenPosition(playerIndex);
         float delay = (drawAnimationSequence++ % 6) * 0.045f;
+
+        if (delay <= 0.001f)
+        {
+            RuntimeSfx.Play(RuntimeSfxType.Draw, 0.62f);
+        }
 
         StartCoroutine(PulseRect(drawPileImage.rectTransform, delay));
         StartCoroutine(AnimateCardSprite(sprite, start, end, new Vector2(124f, 182f), 0.58f, delay));
@@ -602,6 +794,7 @@ public class GameUIManager : MonoBehaviour
         Vector2 start = GetPlayerPlayOrigin(playerIndex);
         Vector2 end = GetRectScreenCenter(topCardImage.rectTransform);
 
+        RuntimeSfx.Play(RuntimeSfxType.Play, 0.72f);
         StartCoroutine(AnimateCardSprite(sprite, start, end, new Vector2(142f, 210f), 0.50f));
         StartCoroutine(PulseRect(topCardImage.rectTransform, 0.35f));
     }
@@ -630,7 +823,7 @@ public class GameUIManager : MonoBehaviour
                 break;
 
             case CardType.DrawFour:
-                label = "+4";
+                label = "+4\n" + gameManager.GetCurrentColor().ToString().ToUpperInvariant();
                 color = new Color(1f, 0.24f, 0.22f);
                 break;
 
@@ -645,15 +838,71 @@ public class GameUIManager : MonoBehaviour
                 break;
 
             case CardType.ChangeColor:
-                label = "WILD";
+                label = "WILD\n" + gameManager.GetCurrentColor().ToString().ToUpperInvariant();
                 color = new Color(1f, 0.92f, 0.28f);
                 break;
         }
 
         if (!string.IsNullOrEmpty(label))
         {
+            RuntimeSfx.Play(RuntimeSfxType.Special, 0.82f);
             StartCoroutine(ShowCenterBurst(label, color));
+
+            if (card.type == CardType.ChangeColor || card.type == CardType.DrawFour)
+            {
+                ShowToast(
+                    "COLOR CHANGED",
+                    GetPlayerName(playerIndex) + " changed color to " + gameManager.GetCurrentColor().ToString().ToUpperInvariant() + " with " + card.GetDisplayName() + ".",
+                    GetUITextColor(gameManager.GetCurrentColor()),
+                    2.4f);
+            }
         }
+    }
+
+    private string GetPlayerName(int playerIndex)
+    {
+        if (gameManager == null)
+        {
+            return "Player " + (playerIndex + 1);
+        }
+
+        List<PlayerData> players = gameManager.GetPlayers();
+        if (players != null && playerIndex >= 0 && playerIndex < players.Count)
+        {
+            return players[playerIndex].playerName;
+        }
+
+        return "Player " + (playerIndex + 1);
+    }
+
+    private void HandleTurnChangedEvent(int playerIndex)
+    {
+        if (!isActiveAndEnabled || playerIndex == lastAnnouncedTurnIndex)
+        {
+            return;
+        }
+
+        lastAnnouncedTurnIndex = playerIndex;
+        BuildRuntimeTheme();
+        RuntimeSfx.Play(RuntimeSfxType.Turn, 0.50f);
+
+        if (gameManager != null)
+        {
+            ShowToast("TURN", gameManager.GetCurrentPlayerName(), new Color(0.18f, 0.95f, 0.86f, 1f));
+        }
+    }
+
+    private void HandleGameOverEvent(string winner)
+    {
+        if (!isActiveAndEnabled)
+        {
+            return;
+        }
+
+        BuildRuntimeTheme();
+        RuntimeSfx.Play(RuntimeSfxType.Win, 0.92f);
+        ShowToast("MATCH COMPLETE", string.IsNullOrEmpty(winner) ? "Game over" : winner, new Color(1f, 0.82f, 0.32f, 1f), 2.8f);
+        StartCoroutine(ShowCenterBurst("GAME OVER", new Color(1f, 0.82f, 0.32f, 1f)));
     }
 
     private Vector2 GetPlayerPlayOrigin(int playerIndex)
@@ -783,6 +1032,29 @@ public class GameUIManager : MonoBehaviour
         rect.localScale = originalScale;
     }
 
+    private IEnumerator ShakeRect(RectTransform rect)
+    {
+        if (rect == null)
+        {
+            yield break;
+        }
+
+        Vector2 originalPosition = rect.anchoredPosition;
+        float duration = 0.22f;
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            float t = elapsed / duration;
+            float strength = Mathf.Lerp(10f, 0f, t);
+            rect.anchoredPosition = originalPosition + new Vector2(Mathf.Sin(t * Mathf.PI * 8f) * strength, 0f);
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        rect.anchoredPosition = originalPosition;
+    }
+
     private IEnumerator ShowCenterBurst(string label, Color color)
     {
         GameObject burstObject = new GameObject("Runtime_CenterBurst", typeof(RectTransform), typeof(CanvasGroup), typeof(TextMeshProUGUI));
@@ -816,6 +1088,113 @@ public class GameUIManager : MonoBehaviour
         }
 
         Destroy(burstObject);
+    }
+
+    private void MaybeShowMessageToast(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message) || message == lastToastMessage || toastPanel == null)
+        {
+            return;
+        }
+
+        lastToastMessage = message;
+
+        string lower = message.ToLowerInvariant();
+        string title = "STATUS";
+        Color accent = new Color(0.18f, 0.95f, 0.86f, 1f);
+
+        if (lower.Contains("cannot") || lower.Contains("invalid") || lower.Contains("choose a color"))
+        {
+            title = "CHECK MOVE";
+            accent = new Color(1f, 0.28f, 0.22f, 1f);
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
+        }
+        else if (lower.Contains("draw") || lower.Contains("penalty"))
+        {
+            title = "DRAW";
+            accent = new Color(1f, 0.74f, 0.18f, 1f);
+        }
+        else if (lower.Contains("played"))
+        {
+            title = "CARD PLAYED";
+            accent = new Color(0.18f, 0.95f, 0.86f, 1f);
+        }
+        else if (lower.Contains("uno"))
+        {
+            title = "UNO";
+            accent = new Color(0.92f, 0.08f, 0.12f, 1f);
+        }
+        else if (lower.Contains("wins") || lower.Contains("loses"))
+        {
+            title = "MATCH COMPLETE";
+            accent = new Color(1f, 0.82f, 0.32f, 1f);
+        }
+
+        ShowToast(title, message, accent);
+    }
+
+    private void ShowToast(string title, string body, Color accent, float duration = 1.9f)
+    {
+        if (toastPanel == null || toastGroup == null)
+        {
+            return;
+        }
+
+        if (toastRoutine != null)
+        {
+            StopCoroutine(toastRoutine);
+        }
+
+        toastRoutine = StartCoroutine(ShowToastRoutine(title, body, accent, duration));
+    }
+
+    private IEnumerator ShowToastRoutine(string title, string body, Color accent, float holdDuration)
+    {
+        toastPanel.gameObject.SetActive(true);
+        toastPanel.transform.SetAsLastSibling();
+
+        Image image = toastPanel.GetComponent<Image>();
+        if (image != null)
+        {
+            image.sprite = GetRoundedRectSprite("toast_panel_" + ColorKey(accent), 320, 120, 22, new Color(0.01f, 0.04f, 0.05f, 0.94f), accent, 4);
+            image.type = Image.Type.Sliced;
+        }
+
+        toastTitleText.text = title;
+        toastTitleText.color = accent;
+        toastBodyText.text = body;
+
+        float fadeIn = 0.14f;
+        float fadeOut = 0.22f;
+        float elapsed = 0f;
+
+        while (elapsed < fadeIn)
+        {
+            float t = elapsed / fadeIn;
+            toastGroup.alpha = t;
+            toastPanel.anchoredPosition = new Vector2(0f, Mathf.Lerp(-176f, -164f, t));
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        toastGroup.alpha = 1f;
+        toastPanel.anchoredPosition = new Vector2(0f, -164f);
+
+        yield return new WaitForSecondsRealtime(holdDuration);
+
+        elapsed = 0f;
+        while (elapsed < fadeOut)
+        {
+            float t = elapsed / fadeOut;
+            toastGroup.alpha = 1f - t;
+            toastPanel.anchoredPosition = new Vector2(0f, Mathf.Lerp(-164f, -182f, t));
+            elapsed += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        toastGroup.alpha = 0f;
+        toastPanel.gameObject.SetActive(false);
+        toastRoutine = null;
     }
 
     private void RefreshSeatPanels()
@@ -858,14 +1237,26 @@ public class GameUIManager : MonoBehaviour
         if (!gameManager.IsLocalPlayerTurn())
         {
             Debug.Log("Not your turn.");
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.68f);
+            ShowToast("WAIT", "It is " + gameManager.GetCurrentPlayerName() + "'s turn.", new Color(1f, 0.74f, 0.18f, 1f));
             return;
         }
 
         if (!gameManager.CanPlayHandCard(handIndex))
         {
             Debug.Log("Card is not playable.");
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.72f);
+            string invalidReason = gameManager.HasPendingDrawPenalty()
+                ? "A +" + gameManager.GetPendingDrawPenalty() + " stack is active. Play +2/+4 or press DRAW +" + gameManager.GetPendingDrawPenalty() + "."
+                : "Match color, number, symbol, Wild, or draw a card.";
+            ShowToast("INVALID CARD", invalidReason, new Color(1f, 0.28f, 0.22f, 1f));
+
+            if (handPanel != null && handIndex >= 0 && handIndex < handPanel.childCount)
+            {
+                StartCoroutine(ShakeRect(handPanel.GetChild(handIndex) as RectTransform));
+            }
+
             HideColorChoice();
-            RefreshUI();
             return;
         }
 
@@ -893,9 +1284,12 @@ public class GameUIManager : MonoBehaviour
         if (!gameManager.IsLocalPlayerTurn())
         {
             Debug.Log("Not your turn.");
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.68f);
+            ShowToast("WAIT", "It is " + gameManager.GetCurrentPlayerName() + "'s turn.", new Color(1f, 0.74f, 0.18f, 1f));
             return;
         }
 
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.76f);
         HideColorChoice();
 
         gameManager.DrawCard();
@@ -910,12 +1304,14 @@ public class GameUIManager : MonoBehaviour
             return;
         }
 
+        RuntimeSfx.Play(RuntimeSfxType.Uno, 0.90f);
         gameManager.CallUno();
         RefreshUI();
     }
 
     private void OnRestartButtonClicked()
     {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         HideColorChoice();
         gameManager.StartOfflineGame();
         RefreshUI();
@@ -923,6 +1319,8 @@ public class GameUIManager : MonoBehaviour
 
     private void OnBackMenuClicked()
     {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+
         if (PhotonNetwork.InRoom)
         {
             PhotonNetwork.LeaveRoom();
@@ -968,6 +1366,8 @@ public class GameUIManager : MonoBehaviour
         {
             colorChoicePanel.transform.SetAsLastSibling();
             colorChoicePanel.SetActive(true);
+            RuntimeSfx.Play(RuntimeSfxType.Special, 0.58f);
+            ShowToast("CHOOSE COLOR", "Pick the next match color.", new Color(1f, 0.82f, 0.32f, 1f));
         }
     }
 
@@ -989,6 +1389,7 @@ public class GameUIManager : MonoBehaviour
         }
 
         gameManager.PlayCard(pendingWildCardIndex, color);
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.72f);
         HideColorChoice();
         RefreshUI();
     }
@@ -998,6 +1399,11 @@ public class GameUIManager : MonoBehaviour
         if (unoButton != null)
         {
             unoButton.interactable = isLocalTurn && !isGameOver && handCount == 2;
+            Image image = unoButton.GetComponent<Image>();
+            if (image != null)
+            {
+                image.color = unoButton.interactable ? Color.white : new Color(1f, 1f, 1f, 0.72f);
+            }
         }
     }
 
@@ -1085,6 +1491,43 @@ public class GameUIManager : MonoBehaviour
 
         TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
         StyleText(text, 26, textColor, TextAlignmentOptions.Center, FontStyles.Bold);
+    }
+
+    private void StyleDrawButton()
+    {
+        if (drawButton == null)
+        {
+            return;
+        }
+
+        Image image = drawButton.GetComponent<Image>();
+        if (image != null)
+        {
+            image.sprite = GetRoundedRectSprite("draw_button_bright", 240, 90, 20, new Color(1f, 0.84f, 0.10f, 1f), new Color(1f, 0.98f, 0.72f, 1f), 5);
+            image.type = Image.Type.Sliced;
+            image.color = Color.white;
+        }
+
+        Outline outline = drawButton.GetComponent<Outline>();
+        if (outline == null)
+        {
+            outline = drawButton.gameObject.AddComponent<Outline>();
+        }
+
+        outline.effectColor = new Color(1f, 0.95f, 0.48f, 0.62f);
+        outline.effectDistance = new Vector2(3f, -3f);
+
+        ColorBlock colors = drawButton.colors;
+        colors.normalColor = Color.white;
+        colors.highlightedColor = new Color(1f, 1f, 0.86f, 1f);
+        colors.pressedColor = new Color(1f, 0.70f, 0.10f, 1f);
+        colors.disabledColor = new Color(1f, 0.78f, 0.25f, 0.58f);
+        colors.colorMultiplier = 1f;
+        colors.fadeDuration = 0.08f;
+        drawButton.colors = colors;
+
+        TMP_Text text = drawButton.GetComponentInChildren<TMP_Text>(true);
+        StyleText(text, 28, new Color(0.03f, 0.04f, 0.05f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
     }
 
     private void SetButtonLabel(Button button, string label)

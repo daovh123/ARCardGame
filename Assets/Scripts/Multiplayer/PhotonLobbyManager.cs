@@ -26,9 +26,12 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
     public Button backButton;
 
     private bool isReady = false;
+    private bool themeBuilt;
 
     private void Start()
     {
+        BuildRuntimeTheme();
+
         createRoomButton.onClick.AddListener(OnCreateRoomClicked);
         joinRoomButton.onClick.AddListener(OnJoinRoomClicked);
         readyButton.onClick.AddListener(OnReadyClicked);
@@ -74,6 +77,7 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
     private void OnCreateRoomClicked()
     {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         SetPlayerName();
 
         string roomCode = Random.Range(1000, 9999).ToString();
@@ -90,12 +94,14 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
     private void OnJoinRoomClicked()
     {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         SetPlayerName();
 
         string roomCode = roomCodeInput.text.Trim();
 
         if (string.IsNullOrEmpty(roomCode))
         {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
             messageText.text = "Please enter room code.";
             return;
         }
@@ -155,9 +161,11 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
     {
         if (!PhotonNetwork.InRoom)
         {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
             return;
         }
 
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         isReady = !isReady;
         SetReadyProperty(isReady);
 
@@ -175,22 +183,26 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
     {
         if (!PhotonNetwork.IsMasterClient)
         {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
             messageText.text = "Only host can start game.";
             return;
         }
 
         if (PhotonNetwork.CurrentRoom.PlayerCount < 2)
         {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
             messageText.text = "Need at least 2 players.";
             return;
         }
 
         if (!AllPlayersReady())
         {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
             messageText.text = "Not all players are ready.";
             return;
         }
 
+        RuntimeSfx.Play(RuntimeSfxType.Special, 0.82f);
         createRoomButton.interactable = false;
         joinRoomButton.interactable = false;
         readyButton.interactable = false;
@@ -268,11 +280,110 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
     private void OnBackClicked()
     {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+
         if (PhotonNetwork.InRoom)
         {
             PhotonNetwork.LeaveRoom();
         }
 
         SceneManager.LoadScene("MainMenuScene");
+    }
+
+    private void BuildRuntimeTheme()
+    {
+        if (themeBuilt)
+        {
+            return;
+        }
+
+        Canvas canvas = ResolveCanvas();
+        if (canvas == null)
+        {
+            return;
+        }
+
+        RuntimeUITheme.ConfigureCanvas(canvas);
+        BuildBackground(canvas.transform);
+        StyleLobbyControls();
+        themeBuilt = true;
+    }
+
+    private Canvas ResolveCanvas()
+    {
+        if (createRoomButton != null)
+        {
+            Canvas canvas = createRoomButton.GetComponentInParent<Canvas>();
+            if (canvas != null)
+            {
+                return canvas;
+            }
+        }
+
+        return FindAnyObjectByType<Canvas>();
+    }
+
+    private void BuildBackground(Transform canvasTransform)
+    {
+        RectTransform background = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_LobbyBackground", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.13f, 0.14f, 1f));
+        background.SetAsFirstSibling();
+        RuntimeUITheme.SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        RectTransform leftPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyPlayersPanel", new Color(0.01f, 0.04f, 0.05f, 0.90f), new Color(0.18f, 0.95f, 0.86f, 0.36f), 26, 3);
+        leftPanel.SetSiblingIndex(1);
+        RuntimeUITheme.SetRect(leftPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, -20f), new Vector2(560f, 610f));
+        RuntimeUITheme.AddShadow(leftPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -8f));
+
+        RectTransform rightPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.90f), new Color(1f, 0.78f, 0.28f, 0.40f), 26, 3);
+        rightPanel.SetSiblingIndex(2);
+        RuntimeUITheme.SetRect(rightPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -20f), new Vector2(560f, 610f));
+        RuntimeUITheme.AddShadow(rightPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -8f));
+
+        TMP_Text title = RuntimeUITheme.CreateLabel(canvasTransform, "Runtime_LobbyTitle", "Multiplayer Lobby", 54, Color.white);
+        RuntimeUITheme.SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -96f), new Vector2(900f, 74f));
+        RuntimeUITheme.AddShadow(title.gameObject, new Color(0f, 0f, 0f, 0.60f), new Vector2(0f, -5f));
+        title.transform.SetAsLastSibling();
+    }
+
+    private void StyleLobbyControls()
+    {
+        RuntimeUITheme.StyleText(connectionStatusText, 23, new Color(0.70f, 0.96f, 1f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
+        RuntimeUITheme.SetRect(connectionStatusText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(176f, -40f), new Vector2(320f, 42f));
+
+        RuntimeUITheme.StyleText(roomCodeText, 35, new Color(1f, 0.82f, 0.34f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
+        RuntimeUITheme.SetRect(roomCodeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, 190f), new Vector2(480f, 52f));
+
+        RuntimeUITheme.StyleText(playerListText, 26, Color.white, TextAlignmentOptions.TopLeft, FontStyles.Bold);
+        RuntimeUITheme.SetRect(playerListText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, -72f), new Vector2(460f, 420f));
+
+        RuntimeUITheme.StyleText(messageText, 23, new Color(1f, 0.90f, 0.66f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
+        RuntimeUITheme.SetRect(messageText.rectTransform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 52f), new Vector2(960f, 44f));
+
+        RuntimeUITheme.StyleInput(playerNameInput, "Player name");
+        RuntimeUITheme.SetRect(playerNameInput.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, 206f), new Vector2(400f, 62f));
+
+        RuntimeUITheme.StyleInput(roomCodeInput, "Room code");
+        RuntimeUITheme.SetRect(roomCodeInput.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, 124f), new Vector2(400f, 62f));
+
+        RuntimeUITheme.StyleButton(createRoomButton, RuntimeUITheme.Gold, RuntimeUITheme.Ink, "Create Room");
+        RuntimeUITheme.SetRect(createRoomButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, 34f), new Vector2(400f, 64f));
+
+        RuntimeUITheme.StyleButton(joinRoomButton, RuntimeUITheme.Blue, Color.white, "Join Room");
+        RuntimeUITheme.SetRect(joinRoomButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -48f), new Vector2(400f, 64f));
+
+        RuntimeUITheme.StyleButton(readyButton, RuntimeUITheme.Felt, Color.white, "Ready");
+        RuntimeUITheme.SetRect(readyButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -132f), new Vector2(400f, 64f));
+
+        RuntimeUITheme.StyleButton(startGameButton, new Color(0.88f, 0.08f, 0.12f, 1f), Color.white, "Start Game");
+        RuntimeUITheme.SetRect(startGameButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -216f), new Vector2(400f, 64f));
+
+        RuntimeUITheme.StyleButton(backButton, new Color(0.08f, 0.16f, 0.18f, 0.98f), Color.white, "Back");
+        RuntimeUITheme.SetRect(backButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -40f), new Vector2(140f, 48f));
+
+        createRoomButton.transform.SetAsLastSibling();
+        joinRoomButton.transform.SetAsLastSibling();
+        readyButton.transform.SetAsLastSibling();
+        startGameButton.transform.SetAsLastSibling();
+        backButton.transform.SetAsLastSibling();
     }
 }

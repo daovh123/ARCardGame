@@ -290,7 +290,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         lastMessage = currentPlayer.playerName + " played " + selectedCard.GetDisplayName();
         if (RequiresColorChoice(selectedCard))
         {
-            lastMessage += " and chose " + currentColor + ".";
+            lastMessage += " and changed the current color to " + currentColor + ".";
         }
 
         Debug.Log(lastMessage);

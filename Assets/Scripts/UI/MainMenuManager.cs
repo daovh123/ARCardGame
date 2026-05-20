@@ -26,17 +26,20 @@ public class MainMenuManager : MonoBehaviour
     private void OnPlayOfflineClicked()
     {
         Debug.Log("Play Offline clicked");
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         SceneManager.LoadScene("GameScene");
     }
 
     private void OnMultiplayerClicked()
     {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         SceneManager.LoadScene("LobbyScene");
     }
 
     private void OnQuitClicked()
     {
         Debug.Log("Quit clicked");
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         Application.Quit();
     }
 
@@ -82,31 +85,28 @@ public class MainMenuManager : MonoBehaviour
         CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
         if (scaler != null)
         {
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            scaler.matchWidthOrHeight = 0.5f;
+            RuntimeUITheme.ConfigureCanvas(canvas);
         }
     }
 
     private void BuildBackground(Transform canvasTransform)
     {
-        RectTransform background = CreatePanel(canvasTransform, "Runtime_MenuBackground", new Color(0.02f, 0.08f, 0.10f, 1f));
+        RectTransform background = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_MenuBackground", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.13f, 0.14f, 1f));
         background.SetAsFirstSibling();
         SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        RectTransform tableGlow = CreatePanel(canvasTransform, "Runtime_MenuTableGlow", new Color(0.02f, 0.31f, 0.25f, 0.80f));
+        RectTransform tableGlow = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuTableGlow", new Color(0.02f, 0.29f, 0.23f, 0.86f), new Color(0.18f, 0.95f, 0.86f, 0.42f), 34, 4);
         tableGlow.SetSiblingIndex(1);
-        SetRect(tableGlow, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -78f), new Vector2(980f, 430f));
+        SetRect(tableGlow, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -70f), new Vector2(1040f, 440f));
         AddShadow(tableGlow.gameObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -10f));
 
         Outline outline = tableGlow.gameObject.AddComponent<Outline>();
         outline.effectColor = new Color(0.25f, 1f, 0.82f, 0.24f);
         outline.effectDistance = new Vector2(5f, -5f);
 
-        RectTransform actionPanel = CreatePanel(canvasTransform, "Runtime_MenuActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.78f));
+        RectTransform actionPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.88f), new Color(1f, 0.78f, 0.28f, 0.38f), 26, 3);
         actionPanel.SetSiblingIndex(2);
-        SetRect(actionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -80f), new Vector2(460f, 300f));
+        SetRect(actionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -76f), new Vector2(500f, 322f));
         AddShadow(actionPanel.gameObject, new Color(0f, 0f, 0f, 0.46f), new Vector2(0f, -8f));
     }
 
@@ -173,7 +173,7 @@ public class MainMenuManager : MonoBehaviour
         }
 
         StyleText(title, 58, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
-        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -162f), new Vector2(900f, 82f));
+        SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(900f, 82f));
         AddShadow(title.gameObject, new Color(0f, 0f, 0f, 0.62f), new Vector2(0f, -5f));
         title.transform.SetAsLastSibling();
     }
@@ -235,29 +235,7 @@ public class MainMenuManager : MonoBehaviour
             return;
         }
 
-        Image image = button.GetComponent<Image>();
-        if (image != null)
-        {
-            image.color = fill;
-        }
-
-        AddShadow(button.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -5f));
-
-        Outline outline = button.GetComponent<Outline>();
-        if (outline == null)
-        {
-            outline = button.gameObject.AddComponent<Outline>();
-        }
-
-        outline.effectColor = new Color(1f, 0.92f, 0.62f, 0.28f);
-        outline.effectDistance = new Vector2(2f, -2f);
-
-        ColorBlock colors = button.colors;
-        colors.normalColor = Color.white;
-        colors.highlightedColor = new Color(1f, 1f, 1f, 0.92f);
-        colors.pressedColor = new Color(0.80f, 0.86f, 0.88f, 1f);
-        colors.disabledColor = new Color(0.24f, 0.26f, 0.28f, 0.70f);
-        button.colors = colors;
+        RuntimeUITheme.StyleButton(button, fill, textColor, labelText);
 
         TMP_Text text = button.GetComponentInChildren<TMP_Text>(true);
         if (text != null)
