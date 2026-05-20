@@ -101,6 +101,8 @@ public class GameUIManager : MonoBehaviour
             UpdateTopCardVisual(topCard);
         }
 
+        ResetPileScales();
+
         bool isLocalTurn = gameManager.IsLocalPlayerTurn();
         bool isGameOver = gameManager.IsGameOver();
 
@@ -1016,7 +1018,8 @@ public class GameUIManager : MonoBehaviour
             yield return new WaitForSeconds(delay);
         }
 
-        Vector3 originalScale = rect.localScale;
+        Vector3 originalScale = Vector3.one;
+        rect.localScale = originalScale;
         float duration = 0.28f;
         float elapsed = 0f;
 
@@ -1030,6 +1033,19 @@ public class GameUIManager : MonoBehaviour
         }
 
         rect.localScale = originalScale;
+    }
+
+    private void ResetPileScales()
+    {
+        if (drawPileImage != null)
+        {
+            drawPileImage.rectTransform.localScale = Vector3.one;
+        }
+
+        if (topCardImage != null)
+        {
+            topCardImage.rectTransform.localScale = Vector3.one;
+        }
     }
 
     private IEnumerator ShakeRect(RectTransform rect)
@@ -1217,19 +1233,53 @@ public class GameUIManager : MonoBehaviour
                 continue;
             }
 
-            bool isCurrent = i == currentIndex;
+            PlayerData player = players[i];
+            bool isActivePlayer = player.IsActive;
+            bool isCurrent = isActivePlayer && i == currentIndex;
             Image panelImage = seatPanels[i].GetComponent<Image>();
             panelImage.sprite = isCurrent
                 ? GetRoundedRectSprite("seat_panel_active", 256, 96, 20, new Color(0.96f, 0.61f, 0.10f, 0.96f), new Color(1f, 0.90f, 0.34f, 0.92f), 4)
-                : GetRoundedRectSprite("seat_panel", 256, 96, 20, new Color(0.01f, 0.04f, 0.05f, 0.88f), new Color(0.22f, 0.92f, 0.82f, 0.30f), 2);
+                : GetRoundedRectSprite(
+                    isActivePlayer ? "seat_panel" : "seat_panel_inactive",
+                    256,
+                    96,
+                    20,
+                    isActivePlayer ? new Color(0.01f, 0.04f, 0.05f, 0.88f) : new Color(0.03f, 0.04f, 0.05f, 0.72f),
+                    isActivePlayer ? new Color(0.22f, 0.92f, 0.82f, 0.30f) : new Color(0.75f, 0.78f, 0.82f, 0.24f),
+                    2);
             panelImage.color = Color.white;
 
-            seatNameTexts[i].text = players[i].playerName;
-            seatNameTexts[i].color = isCurrent ? Color.black : Color.white;
-            seatCountTexts[i].text = players[i].handCards.Count + " cards";
-            seatCountTexts[i].color = isCurrent ? Color.black : new Color(0.78f, 0.96f, 1f, 0.90f);
+            seatNameTexts[i].text = player.playerName;
+            seatNameTexts[i].color = isCurrent ? Color.black : isActivePlayer ? Color.white : new Color(0.78f, 0.82f, 0.86f, 0.86f);
+            seatCountTexts[i].text = GetSeatStatusText(player);
+            seatCountTexts[i].color = isCurrent ? Color.black : isActivePlayer ? new Color(0.78f, 0.96f, 1f, 0.90f) : new Color(0.98f, 0.82f, 0.40f, 0.88f);
             seatPanels[i].localScale = isCurrent ? Vector3.one * 1.04f : Vector3.one;
+
+            if (seatCardImages[i] != null)
+            {
+                seatCardImages[i].color = isActivePlayer ? Color.white : new Color(1f, 1f, 1f, 0.42f);
+            }
         }
+    }
+
+    private string GetSeatStatusText(PlayerData player)
+    {
+        if (player.hasFinished)
+        {
+            return player.finishRank > 0 ? "FINISHED #" + player.finishRank : "FINISHED";
+        }
+
+        if (player.isLastPlace)
+        {
+            return "LAST PLACE";
+        }
+
+        if (player.isEliminated)
+        {
+            return "OUT";
+        }
+
+        return player.handCards.Count + " cards";
     }
 
     private void OnCardClicked(int handIndex)

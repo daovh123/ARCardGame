@@ -339,16 +339,34 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         RuntimeUITheme.SetRect(rightPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -20f), new Vector2(560f, 610f));
         RuntimeUITheme.AddShadow(rightPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -8f));
 
-        TMP_Text title = RuntimeUITheme.CreateLabel(canvasTransform, "Runtime_LobbyTitle", "Multiplayer Lobby", 54, Color.white);
+        TMP_Text title = ResolveLobbyTitle(canvasTransform);
+        title.text = "Multiplayer Lobby";
+        RuntimeUITheme.StyleText(title, 54, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
         RuntimeUITheme.SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -96f), new Vector2(900f, 74f));
         RuntimeUITheme.AddShadow(title.gameObject, new Color(0f, 0f, 0f, 0.60f), new Vector2(0f, -5f));
         title.transform.SetAsLastSibling();
     }
 
+    private TMP_Text ResolveLobbyTitle(Transform canvasTransform)
+    {
+        Transform existingTitle = canvasTransform.Find("LobbyTitleText");
+        if (existingTitle != null)
+        {
+            TMP_Text title = existingTitle.GetComponent<TMP_Text>();
+            if (title != null)
+            {
+                return title;
+            }
+        }
+
+        return RuntimeUITheme.CreateLabel(canvasTransform, "Runtime_LobbyTitle", "Multiplayer Lobby", 54, Color.white);
+    }
+
     private void StyleLobbyControls()
     {
         RuntimeUITheme.StyleText(connectionStatusText, 23, new Color(0.70f, 0.96f, 1f, 1f), TextAlignmentOptions.Left, FontStyles.Bold);
-        RuntimeUITheme.SetRect(connectionStatusText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(176f, -40f), new Vector2(320f, 42f));
+        connectionStatusText.overflowMode = TextOverflowModes.Ellipsis;
+        RuntimeUITheme.SetRect(connectionStatusText.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(184f, -40f), new Vector2(430f, 42f), new Vector2(0f, 0.5f));
 
         RuntimeUITheme.StyleText(roomCodeText, 35, new Color(1f, 0.82f, 0.34f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
         RuntimeUITheme.SetRect(roomCodeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, 190f), new Vector2(480f, 52f));

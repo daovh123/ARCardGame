@@ -23,6 +23,7 @@ public class GameManager : MonoBehaviourPunCallbacks
     private int drawnCardIndex = -1;
     private int pendingDrawPenalty = 0;
     private int unoDeclaredPlayerIndex = -1;
+    private int finishOrder = 0;
     private bool isGameOver = false;
     private string lastMessage = "";
     private string winnerName = "";
@@ -62,6 +63,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         drawnCardIndex = -1;
         pendingDrawPenalty = 0;
         unoDeclaredPlayerIndex = -1;
+        finishOrder = 0;
         currentColor = CardColor.Wild;
         lastMessage = "Match color, number, symbol, or play a Wild.";
         winnerName = "";
@@ -156,7 +158,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         {
             direction *= -1;
 
-            if (players.Count == 2)
+            if (GetActivePlayerCount() == 2)
             {
                 MoveToNextPlayer();
                 lastMessage = "First card is Reverse. Player 1 is skipped.";
@@ -216,7 +218,7 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     private bool DrawCardsForPlayer(PlayerData player, int count)
     {
-        if (player == null)
+        if (!IsPlayerActive(player))
         {
             return false;
         }
@@ -247,12 +249,18 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     public void PlayCard(int handCardIndex, CardColor chosenColor)
     {
+        EnsureCurrentPlayerIsActive();
+
         if (isGameOver || players.Count == 0)
         {
             return;
         }
 
         PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return;
+        }
 
         if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
         {
@@ -320,12 +328,15 @@ public class GameManager : MonoBehaviourPunCallbacks
 
         if (currentPlayer.handCards.Count == 0)
         {
-            string finalPenaltyMessage = ResolveRoundEndDrawPenalty();
-            isGameOver = true;
-            winnerName = currentPlayer.playerName;
-            lastMessage = currentPlayer.playerName + " wins!" + finalPenaltyMessage;
-            Debug.Log(lastMessage);
-            GameEvents.GameOver(winnerName);
+            FinishPlayer(currentPlayer);
+
+            if (!isGameOver)
+            {
+                string finalPenaltyMessage = ResolveRoundEndDrawPenalty();
+                AppendLastMessage(finalPenaltyMessage);
+                EnsureCurrentPlayerIsActive();
+            }
+
             PublishGameState();
             return;
         }
@@ -345,16 +356,26 @@ public class GameManager : MonoBehaviourPunCallbacks
         PlayerData targetPlayer = players[currentPlayerIndex];
         int cardsToDraw = pendingDrawPenalty;
 
-        DrawCardsForPlayer(targetPlayer, cardsToDraw);
         pendingDrawPenalty = 0;
         hasDrawnThisTurn = false;
         drawnCardIndex = -1;
         unoDeclaredPlayerIndex = -1;
-        return " " + targetPlayer.playerName + " draws " + cardsToDraw + " final penalty cards.";
+
+        if (!IsPlayerActive(targetPlayer))
+        {
+            EnsureCurrentPlayerIsActive();
+            return "";
+        }
+
+        AppendLastMessage(targetPlayer.playerName + " draws " + cardsToDraw + " final penalty cards.");
+        DrawCardsForPlayer(targetPlayer, cardsToDraw);
+        return "";
     }
 
     public void DrawCard()
     {
+        EnsureCurrentPlayerIsActive();
+
         if (isGameOver || players.Count == 0)
         {
             return;
@@ -373,6 +394,10 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
 
         PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return;
+        }
 
         CardData card = DrawFromDeck();
 
@@ -403,12 +428,19 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     public void PassAfterDraw()
     {
+        EnsureCurrentPlayerIsActive();
+
         if (isGameOver || !hasDrawnThisTurn)
         {
             return;
         }
 
         PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return;
+        }
+
         lastMessage = currentPlayer.playerName + " passed after drawing.";
         hasDrawnThisTurn = false;
         drawnCardIndex = -1;
@@ -419,12 +451,18 @@ public class GameManager : MonoBehaviourPunCallbacks
 
     public void CallUno()
     {
+        EnsureCurrentPlayerIsActive();
+
         if (isGameOver || players.Count == 0)
         {
             return;
         }
 
         PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return;
+        }
 
         if (currentPlayer.handCards.Count != 2)
         {
@@ -451,7 +489,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         {
             direction *= -1;
 
-            if (players.Count == 2)
+            if (GetActivePlayerCount() == 2)
             {
                 MoveToNextPlayer();
                 MoveToNextPlayer();
@@ -501,6 +539,13 @@ public class GameManager : MonoBehaviourPunCallbacks
         drawnCardIndex = -1;
         unoDeclaredPlayerIndex = -1;
 
+        if (!IsPlayerActive(targetPlayer))
+        {
+            EnsureCurrentPlayerIsActive();
+            PublishGameState();
+            return;
+        }
+
         if (DrawCardsForPlayer(targetPlayer, cardsToDraw))
         {
             PublishGameState();
@@ -521,33 +566,206 @@ public class GameManager : MonoBehaviourPunCallbacks
             return false;
         }
 
-        isGameOver = true;
-        winnerName = "";
-        lastMessage = player.playerName + " loses with " + player.handCards.Count + " cards.";
-        Debug.Log(lastMessage);
-        GameEvents.GameOver(lastMessage);
+        EliminatePlayer(player, "more than " + MaxHandCardsBeforeLoss + " cards (" + player.handCards.Count + ")");
         return true;
     }
 
-    private void MoveToNextPlayer()
+    private bool IsPlayerActive(PlayerData player)
     {
-        if (players.Count == 0)
+        return player != null && player.IsActive;
+    }
+
+    private int GetActivePlayerCount()
+    {
+        int count = 0;
+
+        foreach (PlayerData player in players)
+        {
+            if (IsPlayerActive(player))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private PlayerData GetOnlyActivePlayer()
+    {
+        foreach (PlayerData player in players)
+        {
+            if (IsPlayerActive(player))
+            {
+                return player;
+            }
+        }
+
+        return null;
+    }
+
+    private void EnsureCurrentPlayerIsActive()
+    {
+        if (isGameOver || players.Count == 0)
         {
             return;
         }
 
-        currentPlayerIndex += direction;
-
-        if (currentPlayerIndex >= players.Count)
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
         {
-            currentPlayerIndex = 0;
-        }
-        else if (currentPlayerIndex < 0)
-        {
-            currentPlayerIndex = players.Count - 1;
+            MoveToNextPlayer();
+            return;
         }
 
-        GameEvents.TurnChanged(currentPlayerIndex);
+        if (!IsPlayerActive(players[currentPlayerIndex]))
+        {
+            MoveToNextPlayer();
+        }
+    }
+
+    private void FinishPlayer(PlayerData player)
+    {
+        if (!IsPlayerActive(player))
+        {
+            return;
+        }
+
+        finishOrder++;
+        player.hasFinished = true;
+        player.finishRank = finishOrder;
+        player.handCards.Clear();
+
+        AppendLastMessage(player.playerName + " finished #" + player.finishRank + ".");
+        Debug.Log(lastMessage);
+
+        if (!FinishRoundIfOnlyOneActivePlayer(true))
+        {
+            EnsureCurrentPlayerIsActive();
+        }
+    }
+
+    private void EliminatePlayer(PlayerData player, string reason)
+    {
+        if (!IsPlayerActive(player))
+        {
+            return;
+        }
+
+        player.isEliminated = true;
+        player.finishRank = players.Count;
+
+        AppendLastMessage(player.playerName + " is out: " + reason + ".");
+        Debug.Log(lastMessage);
+
+        if (!FinishRoundIfOnlyOneActivePlayer(false))
+        {
+            EnsureCurrentPlayerIsActive();
+        }
+    }
+
+    private bool FinishRoundIfOnlyOneActivePlayer(bool remainingPlayerIsLastPlace)
+    {
+        if (GetActivePlayerCount() > 1)
+        {
+            return false;
+        }
+
+        PlayerData finalPlayer = GetOnlyActivePlayer();
+        if (finalPlayer != null)
+        {
+            if (remainingPlayerIsLastPlace)
+            {
+                finalPlayer.isLastPlace = true;
+                finalPlayer.finishRank = players.Count;
+                AppendLastMessage(finalPlayer.playerName + " is last place.");
+            }
+            else
+            {
+                finishOrder++;
+                finalPlayer.hasFinished = true;
+                finalPlayer.finishRank = finishOrder;
+                AppendLastMessage(finalPlayer.playerName + " is the final remaining player.");
+            }
+        }
+
+        pendingDrawPenalty = 0;
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        unoDeclaredPlayerIndex = -1;
+        isGameOver = true;
+        winnerName = GetFirstPlaceName();
+        AppendLastMessage("Round complete.");
+        Debug.Log(lastMessage);
+        GameEvents.GameOver(string.IsNullOrEmpty(winnerName) ? lastMessage : winnerName);
+        return true;
+    }
+
+    private string GetFirstPlaceName()
+    {
+        foreach (PlayerData player in players)
+        {
+            if (player.hasFinished && player.finishRank == 1)
+            {
+                return player.playerName;
+            }
+        }
+
+        return "";
+    }
+
+    private void AppendLastMessage(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(lastMessage))
+        {
+            lastMessage = message;
+            return;
+        }
+
+        if (!lastMessage.EndsWith(".") && !lastMessage.EndsWith("!") && !lastMessage.EndsWith("?"))
+        {
+            lastMessage += ".";
+        }
+
+        lastMessage += " " + message;
+    }
+
+    private void MoveToNextPlayer()
+    {
+        if (players.Count == 0 || GetActivePlayerCount() == 0)
+        {
+            return;
+        }
+
+        int nextIndex = currentPlayerIndex;
+        if (nextIndex < 0 || nextIndex >= players.Count)
+        {
+            nextIndex = direction >= 0 ? -1 : 0;
+        }
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            nextIndex += direction;
+
+            if (nextIndex >= players.Count)
+            {
+                nextIndex = 0;
+            }
+            else if (nextIndex < 0)
+            {
+                nextIndex = players.Count - 1;
+            }
+
+            if (IsPlayerActive(players[nextIndex]))
+            {
+                currentPlayerIndex = nextIndex;
+                GameEvents.TurnChanged(currentPlayerIndex);
+                return;
+            }
+        }
     }
 
     private void PrintCurrentPlayer()
@@ -590,6 +808,11 @@ public class GameManager : MonoBehaviourPunCallbacks
             }
         }
 
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
+        {
+            return new List<CardData>();
+        }
+
         return players[currentPlayerIndex].handCards;
     }
 
@@ -600,7 +823,16 @@ public class GameManager : MonoBehaviourPunCallbacks
             return false;
         }
 
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
+        {
+            return false;
+        }
+
         PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return false;
+        }
 
         if (handCardIndex < 0 || handCardIndex >= currentPlayer.handCards.Count)
         {
@@ -627,12 +859,23 @@ public class GameManager : MonoBehaviourPunCallbacks
             return false;
         }
 
-        if (pendingDrawPenalty > 0)
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
         {
-            return HasStackableDrawCard(players[currentPlayerIndex].handCards);
+            return false;
         }
 
-        return RuleChecker.HasPlayableCard(players[currentPlayerIndex].handCards, topDiscardCard, currentColor);
+        PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return false;
+        }
+
+        if (pendingDrawPenalty > 0)
+        {
+            return HasStackableDrawCard(currentPlayer.handCards);
+        }
+
+        return RuleChecker.HasPlayableCard(currentPlayer.handCards, topDiscardCard, currentColor);
     }
 
     public bool IsWaitingForDrawDecision()
@@ -672,6 +915,11 @@ public class GameManager : MonoBehaviourPunCallbacks
             return "";
         }
 
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
+        {
+            return "";
+        }
+
         return players[currentPlayerIndex].playerName;
     }
 
@@ -704,10 +952,18 @@ public class GameManager : MonoBehaviourPunCallbacks
     {
         if (!PhotonNetwork.InRoom)
         {
-            return true;
+            return !isGameOver &&
+                   currentPlayerIndex >= 0 &&
+                   currentPlayerIndex < players.Count &&
+                   IsPlayerActive(players[currentPlayerIndex]);
         }
 
         if (currentPlayerIndex < 0 || currentPlayerIndex >= PhotonNetwork.PlayerList.Length)
+        {
+            return false;
+        }
+
+        if (currentPlayerIndex >= players.Count || !IsPlayerActive(players[currentPlayerIndex]))
         {
             return false;
         }
@@ -836,6 +1092,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         state.drawnCardIndex = drawnCardIndex;
         state.pendingDrawPenalty = pendingDrawPenalty;
         state.unoDeclaredPlayerIndex = unoDeclaredPlayerIndex;
+        state.finishOrder = finishOrder;
         state.isGameOver = isGameOver;
         state.lastMessage = lastMessage;
         state.winnerName = winnerName;
@@ -861,6 +1118,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         drawnCardIndex = state.drawnCardIndex;
         pendingDrawPenalty = state.pendingDrawPenalty;
         unoDeclaredPlayerIndex = state.unoDeclaredPlayerIndex;
+        finishOrder = state.finishOrder;
         isGameOver = state.isGameOver;
         lastMessage = state.lastMessage;
         winnerName = state.winnerName;

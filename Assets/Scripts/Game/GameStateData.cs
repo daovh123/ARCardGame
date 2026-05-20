@@ -17,6 +17,7 @@ public class GameStateData
     public int drawnCardIndex;
     public int pendingDrawPenalty;
     public int unoDeclaredPlayerIndex;
+    public int finishOrder;
 
     public bool isGameOver;
     public string lastMessage;
