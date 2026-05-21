@@ -15,17 +15,24 @@ public class TienLenCardView : MonoBehaviour
     {
         Build();
 
-        Color suitColor = GetSuitColor(card.suit);
-        background.color = interactable ? Color.white : new Color(0.76f, 0.78f, 0.80f, 1f);
-        border.color = selected ? new Color(1f, 0.76f, 0.18f, 1f) : new Color(0.08f, 0.10f, 0.12f, 1f);
+        Sprite cardSprite = TienLenCardSpriteDatabase.GetSprite(card);
+        if (cardSprite != null)
+        {
+            background.sprite = cardSprite;
+            background.type = Image.Type.Simple;
+            background.preserveAspect = false;
+            background.color = interactable ? Color.white : new Color(0.72f, 0.74f, 0.76f, 1f);
+            topText.gameObject.SetActive(false);
+            centerText.gameObject.SetActive(false);
+            bottomText.gameObject.SetActive(false);
+        }
+        else
+        {
+            ApplyFallbackFace(card, interactable);
+        }
 
-        string label = card.RankLabel + "\n" + card.SuitLabel;
-        topText.text = label;
-        topText.color = suitColor;
-        centerText.text = card.SuitLabel;
-        centerText.color = suitColor;
-        bottomText.text = label;
-        bottomText.color = suitColor;
+        border.gameObject.SetActive(selected);
+        border.color = selected ? new Color(1f, 0.76f, 0.18f, 1f) : Color.clear;
 
         CanvasGroup group = GetComponent<CanvasGroup>();
         if (group == null)
@@ -36,6 +43,27 @@ public class TienLenCardView : MonoBehaviour
         group.alpha = interactable ? 1f : 0.58f;
         rectTransform.anchoredPosition = selected ? new Vector2(0f, 18f) : Vector2.zero;
         rectTransform.localScale = selected ? Vector3.one * 1.06f : Vector3.one;
+    }
+
+    private void ApplyFallbackFace(PlayingCardData card, bool interactable)
+    {
+        Color suitColor = GetSuitColor(card.suit);
+        background.sprite = RuntimeUITheme.GetRoundedRectSprite("tlmn_card_bg", 180, 252, 18, Color.white, new Color(0.08f, 0.10f, 0.12f, 1f), 5);
+        background.type = Image.Type.Sliced;
+        background.preserveAspect = false;
+        background.color = interactable ? Color.white : new Color(0.76f, 0.78f, 0.80f, 1f);
+
+        topText.gameObject.SetActive(true);
+        centerText.gameObject.SetActive(true);
+        bottomText.gameObject.SetActive(true);
+
+        string label = card.RankLabel + "\n" + card.SuitLabel;
+        topText.text = label;
+        topText.color = suitColor;
+        centerText.text = card.SuitLabel;
+        centerText.color = suitColor;
+        bottomText.text = label;
+        bottomText.color = suitColor;
     }
 
     private void Build()
@@ -55,6 +83,7 @@ public class TienLenCardView : MonoBehaviour
 
         background.sprite = RuntimeUITheme.GetRoundedRectSprite("tlmn_card_bg", 180, 252, 18, Color.white, new Color(0.08f, 0.10f, 0.12f, 1f), 5);
         background.type = Image.Type.Sliced;
+        background.preserveAspect = false;
 
         GameObject borderObject = new GameObject("SelectedBorder", typeof(RectTransform), typeof(Image));
         borderObject.transform.SetParent(transform, false);

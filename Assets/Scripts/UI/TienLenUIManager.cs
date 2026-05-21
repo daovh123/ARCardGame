@@ -6,10 +6,13 @@ using UnityEngine.UI;
 
 public class TienLenUIManager : MonoBehaviour
 {
+    private const float CardAspect = 0.70f;
+
     private TienLenGameManager gameManager;
     private Canvas canvas;
     private RectTransform root;
     private RectTransform handPanel;
+    private HorizontalLayoutGroup handLayout;
     private RectTransform tableCardsPanel;
     private TMP_Text turnText;
     private TMP_Text messageText;
@@ -137,14 +140,14 @@ public class TienLenUIManager : MonoBehaviour
         handPanel = RuntimeUITheme.CreatePanel(root, "TienLen_HandPanel", new Color(0.01f, 0.03f, 0.04f, 0.70f), new Color(0.18f, 0.95f, 0.86f, 0.22f), 24, 2);
         RuntimeUITheme.SetRect(handPanel, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 105f), new Vector2(1260f, 180f));
 
-        HorizontalLayoutGroup layout = handPanel.gameObject.AddComponent<HorizontalLayoutGroup>();
-        layout.childAlignment = TextAnchor.MiddleCenter;
-        layout.childControlHeight = false;
-        layout.childControlWidth = false;
-        layout.childForceExpandHeight = false;
-        layout.childForceExpandWidth = false;
-        layout.spacing = 8f;
-        layout.padding = new RectOffset(18, 18, 8, 8);
+        handLayout = handPanel.gameObject.AddComponent<HorizontalLayoutGroup>();
+        handLayout.childAlignment = TextAnchor.MiddleCenter;
+        handLayout.childControlHeight = false;
+        handLayout.childControlWidth = false;
+        handLayout.childForceExpandHeight = false;
+        handLayout.childForceExpandWidth = false;
+        handLayout.spacing = 8f;
+        handLayout.padding = new RectOffset(18, 18, 8, 8);
     }
 
     private void BuildButtons()
@@ -246,7 +249,7 @@ public class TienLenUIManager : MonoBehaviour
 
         foreach (PlayingCardData card in cards)
         {
-            GameObject cardObject = CreateCardObject(tableCardsPanel, new Vector2(82f, 118f));
+            GameObject cardObject = CreateCardObject(tableCardsPanel, CardSizeFromHeight(126f));
             cardObject.GetComponent<TienLenCardView>().Setup(card, false, true);
         }
     }
@@ -255,13 +258,19 @@ public class TienLenUIManager : MonoBehaviour
     {
         ClearChildren(handPanel);
         List<PlayingCardData> hand = gameManager.GetCurrentHand();
-        float cardWidth = hand.Count > 11 ? 78f : 88f;
-        float cardHeight = hand.Count > 11 ? 116f : 130f;
+        if (handLayout != null)
+        {
+            handLayout.spacing = hand.Count > 11 ? -8f : 4f;
+            handLayout.padding = new RectOffset(18, 18, 4, 4);
+        }
+
+        float cardHeight = hand.Count > 11 ? 142f : 156f;
+        Vector2 cardSize = CardSizeFromHeight(cardHeight);
 
         for (int i = 0; i < hand.Count; i++)
         {
             int handIndex = i;
-            GameObject cardObject = CreateCardObject(handPanel, new Vector2(cardWidth, cardHeight));
+            GameObject cardObject = CreateCardObject(handPanel, cardSize);
             Button button = cardObject.AddComponent<Button>();
             button.onClick.AddListener(() => ToggleCard(handIndex));
 
@@ -280,6 +289,11 @@ public class TienLenUIManager : MonoBehaviour
         RuntimeUITheme.SetRect(cardObject.transform as RectTransform, Vector2.zero, Vector2.zero, Vector2.zero, size);
         RuntimeUITheme.AddShadow(cardObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -4f));
         return cardObject;
+    }
+
+    private Vector2 CardSizeFromHeight(float height)
+    {
+        return new Vector2(Mathf.Round(height * CardAspect), height);
     }
 
     private void ToggleCard(int index)

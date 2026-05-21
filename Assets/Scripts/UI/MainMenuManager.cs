@@ -123,28 +123,23 @@ public class MainMenuManager : MonoBehaviour
 
     private void BuildCardPreview(Transform canvasTransform)
     {
-        if (cardDatabase == null)
-        {
-            return;
-        }
-
         Sprite[] sprites =
         {
-            cardDatabase.card_back,
-            cardDatabase.wild_change_color,
-            cardDatabase.red_2plus,
-            cardDatabase.wild_plus4
+            cardDatabase == null ? null : cardDatabase.card_back,
+            cardDatabase == null ? null : cardDatabase.wild_change_color,
+            TienLenCardSpriteDatabase.GetSprite(new PlayingCardData(0, 14, PlayingCardSuit.Spades)),
+            TienLenCardSpriteDatabase.GetSprite(new PlayingCardData(0, 2, PlayingCardSuit.Hearts))
         };
 
         Vector2[] positions =
         {
             new Vector2(-450f, -78f),
             new Vector2(-350f, -42f),
-            new Vector2(350f, -42f),
-            new Vector2(450f, -78f)
+            new Vector2(350f, -58f),
+            new Vector2(468f, -72f)
         };
 
-        float[] rotations = { -12f, 8f, -8f, 12f };
+        float[] rotations = { -12f, 8f, -8f, 10f };
 
         for (int i = 0; i < sprites.Length; i++)
         {
@@ -155,9 +150,10 @@ public class MainMenuManager : MonoBehaviour
 
             Image image = CreateImage(canvasTransform, "Runtime_MenuCard_" + i);
             image.sprite = sprites[i];
-            image.preserveAspect = true;
+            image.preserveAspect = i < 2;
             image.raycastTarget = false;
-            SetRect(image.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), positions[i], new Vector2(150f, 220f));
+            Vector2 size = i < 2 ? new Vector2(150f, 220f) : new Vector2(154f, 224f);
+            SetRect(image.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), positions[i], size);
             image.rectTransform.localRotation = Quaternion.Euler(0f, 0f, rotations[i]);
             AddShadow(image.gameObject, new Color(0f, 0f, 0f, 0.50f), new Vector2(0f, -8f));
             image.transform.SetSiblingIndex(3 + i);
