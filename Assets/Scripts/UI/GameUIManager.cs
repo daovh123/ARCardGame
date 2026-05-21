@@ -27,6 +27,7 @@ public class GameUIManager : MonoBehaviour
     public Button gameOverRestartButton;
 
     private static CardSpriteDatabase cardDatabase;
+    private static TienLenThemeAssetDatabase sharedTableAssets;
 
     private Image topCardImage;
     private Image drawPileImage;
@@ -225,6 +226,11 @@ public class GameUIManager : MonoBehaviour
         {
             cardDatabase = Resources.Load<CardSpriteDatabase>("CardSpriteDatabase");
         }
+
+        if (sharedTableAssets == null)
+        {
+            sharedTableAssets = Resources.Load<TienLenThemeAssetDatabase>("TienLen/TienLenThemeAssetDatabase");
+        }
     }
 
     private Canvas ResolveCanvas()
@@ -257,28 +263,64 @@ public class GameUIManager : MonoBehaviour
     {
         RectTransform background = CreatePanel(canvasTransform, "Runtime_Background", Color.white);
         Image backgroundImage = background.GetComponent<Image>();
-        backgroundImage.sprite = GetVerticalGradientSprite("game_bg", new Color(0.01f, 0.04f, 0.05f), new Color(0.02f, 0.12f, 0.13f));
+        Texture2D unoBackgroundTexture = sharedTableAssets == null ? null : sharedTableAssets.unoBackgroundTexture;
+        if (unoBackgroundTexture == null && sharedTableAssets != null)
+        {
+            unoBackgroundTexture = sharedTableAssets.backgroundTexture;
+        }
+
+        Sprite backgroundSprite = RuntimeUITheme.GetTextureSprite(unoBackgroundTexture, "uno_shared_background");
+        backgroundImage.sprite = backgroundSprite != null
+            ? backgroundSprite
+            : GetVerticalGradientSprite("game_bg", new Color(0.01f, 0.04f, 0.05f), new Color(0.02f, 0.12f, 0.13f));
+        backgroundImage.preserveAspect = false;
         background.SetAsFirstSibling();
         SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        RectTransform frame = CreatePanel(canvasTransform, "Runtime_TableFrame", Color.white);
-        Image frameImage = frame.GetComponent<Image>();
-        frameImage.sprite = GetRoundedRectSprite("table_frame", 256, 128, 34, new Color(0.30f, 0.16f, 0.07f, 1f), new Color(0.82f, 0.55f, 0.24f, 1f), 7);
-        frameImage.type = Image.Type.Sliced;
-        frame.SetSiblingIndex(1);
-        SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(1030f, 416f));
-        AddShadow(frame.gameObject, new Color(0f, 0f, 0f, 0.48f), new Vector2(0f, -10f));
+        RectTransform vignette = CreatePanel(canvasTransform, "Runtime_BackgroundVignette", Color.white);
+        Image vignetteImage = vignette.GetComponent<Image>();
+        vignetteImage.sprite = GetVerticalGradientSprite("uno_bg_vignette", new Color(0.01f, 0.02f, 0.02f, 0.28f), new Color(0f, 0f, 0f, 0.68f));
+        vignette.SetSiblingIndex(1);
+        SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        RectTransform table = CreatePanel(canvasTransform, "Runtime_TableSurface", Color.white);
-        Image tableImage = table.GetComponent<Image>();
-        tableImage.sprite = GetRoundedRectSprite("felt_surface", 256, 128, 28, new Color(0.02f, 0.32f, 0.25f, 0.97f), new Color(0.18f, 0.92f, 0.80f, 0.58f), 4);
-        tableImage.type = Image.Type.Sliced;
-        table.SetSiblingIndex(2);
-        SetRect(table, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(910f, 332f));
+        Texture2D unoTableTexture = sharedTableAssets == null ? null : sharedTableAssets.unoTableTexture;
+        if (unoTableTexture == null && sharedTableAssets != null)
+        {
+            unoTableTexture = sharedTableAssets.tableTexture;
+        }
 
-        Outline tableOutline = table.gameObject.AddComponent<Outline>();
-        tableOutline.effectColor = new Color(0.20f, 0.95f, 0.85f, 0.28f);
-        tableOutline.effectDistance = new Vector2(4f, -4f);
+        Sprite tableSprite = RuntimeUITheme.GetTextureSprite(unoTableTexture, "uno_shared_table");
+        if (tableSprite != null)
+        {
+            Image tableArt = CreateImage(canvasTransform, "Runtime_TableArt");
+            tableArt.sprite = tableSprite;
+            tableArt.preserveAspect = true;
+            tableArt.SetNativeSize();
+            tableArt.transform.SetSiblingIndex(2);
+            SetRect(tableArt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(1080f, 505f));
+            AddShadow(tableArt.gameObject, new Color(0f, 0f, 0f, 0.58f), new Vector2(0f, -12f));
+        }
+        else
+        {
+            RectTransform frame = CreatePanel(canvasTransform, "Runtime_TableFrame", Color.white);
+            Image frameImage = frame.GetComponent<Image>();
+            frameImage.sprite = GetRoundedRectSprite("table_frame", 256, 128, 34, new Color(0.30f, 0.16f, 0.07f, 1f), new Color(0.82f, 0.55f, 0.24f, 1f), 7);
+            frameImage.type = Image.Type.Sliced;
+            frame.SetSiblingIndex(2);
+            SetRect(frame, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(1030f, 416f));
+            AddShadow(frame.gameObject, new Color(0f, 0f, 0f, 0.48f), new Vector2(0f, -10f));
+
+            RectTransform table = CreatePanel(canvasTransform, "Runtime_TableSurface", Color.white);
+            Image tableImage = table.GetComponent<Image>();
+            tableImage.sprite = GetRoundedRectSprite("felt_surface", 256, 128, 28, new Color(0.02f, 0.32f, 0.25f, 0.97f), new Color(0.18f, 0.92f, 0.80f, 0.58f), 4);
+            tableImage.type = Image.Type.Sliced;
+            table.SetSiblingIndex(3);
+            SetRect(table, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(910f, 332f));
+
+            Outline tableOutline = table.gameObject.AddComponent<Outline>();
+            tableOutline.effectColor = new Color(0.20f, 0.95f, 0.85f, 0.28f);
+            tableOutline.effectDistance = new Vector2(4f, -4f);
+        }
     }
 
     private void BuildTopHud(Transform canvasTransform)

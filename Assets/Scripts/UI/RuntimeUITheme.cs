@@ -73,6 +73,30 @@ public static class RuntimeUITheme
         return image;
     }
 
+    public static Sprite GetTextureSprite(Texture2D texture, string key)
+    {
+        if (texture == null)
+        {
+            return null;
+        }
+
+        string spriteKey = key + "_" + texture.name + "_" + texture.width + "x" + texture.height;
+        if (Sprites.TryGetValue(spriteKey, out Sprite sprite))
+        {
+            return sprite;
+        }
+
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        sprite = Sprite.Create(
+            texture,
+            new Rect(0f, 0f, texture.width, texture.height),
+            new Vector2(0.5f, 0.5f),
+            100f);
+        Sprites[spriteKey] = sprite;
+        return sprite;
+    }
+
     public static TMP_Text CreateLabel(Transform parent, string name, string text, int fontSize, Color color)
     {
         GameObject labelObject = new GameObject(name, typeof(RectTransform), typeof(TextMeshProUGUI));

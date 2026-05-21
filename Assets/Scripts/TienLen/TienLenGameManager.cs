@@ -14,6 +14,8 @@ public class TienLenGameManager : MonoBehaviour
     private bool tableOwnerFinished;
     private bool isGameOver;
     private string lastMessage = "";
+    private int feedbackVersion;
+    private TienLenFeedbackSnapshot lastFeedback = new TienLenFeedbackSnapshot();
 
     public void StartGame()
     {
@@ -36,6 +38,14 @@ public class TienLenGameManager : MonoBehaviour
         Shuffle(deck);
         Deal(deck);
         currentPlayerIndex = FindPlayerWithThreeSpades();
+        RecordFeedback(
+            TienLenFeedbackKind.GameStart,
+            currentPlayerIndex,
+            currentPlayerIndex,
+            "3 OF SPADES STARTS",
+            players[currentPlayerIndex].playerName + " leads first. Any valid set may be played.",
+            null,
+            0);
 
         if (TryApplyInstantWin())
         {
@@ -48,6 +58,7 @@ public class TienLenGameManager : MonoBehaviour
         if (isGameOver || selectedHandIndices == null || selectedHandIndices.Count == 0)
         {
             lastMessage = "Select at least one card.";
+            RecordFeedback(TienLenFeedbackKind.Invalid, currentPlayerIndex, currentPlayerIndex, "INVALID", lastMessage, null, 0);
             return false;
         }
 
@@ -58,15 +69,18 @@ public class TienLenGameManager : MonoBehaviour
         if (!challenger.IsValid)
         {
             lastMessage = "Invalid set. Use single, pair, triple, straight, four-kind, or consecutive pairs.";
+            RecordFeedback(TienLenFeedbackKind.Invalid, currentPlayerIndex, currentPlayerIndex, "INVALID SET", lastMessage, selectedCards, 0);
             return false;
         }
 
         if (!TienLenRuleChecker.CanBeat(challenger, tableCombination))
         {
             lastMessage = challenger.GetLabel() + " cannot beat " + tableCombination.GetLabel() + ".";
+            RecordFeedback(TienLenFeedbackKind.Invalid, currentPlayerIndex, currentPlayerIndex, "CANNOT BEAT", lastMessage, selectedCards, 0);
             return false;
         }
 
+        TienLenCombination previousCombination = tableCombination;
         RemoveSelectedCards(player, selectedCards);
         tableCards.Clear();
         tableCards.AddRange(challenger.cards);
@@ -76,7 +90,7 @@ public class TienLenGameManager : MonoBehaviour
         passed[currentPlayerIndex] = false;
 
         lastMessage = player.playerName + " played " + challenger.GetLabel() + ": " + FormatCards(challenger.cards) + ".";
-        RuntimeSfx.Play(RuntimeSfxType.Play, 0.74f);
+        RecordPlayFeedback(player.playerIndex, challenger, previousCombination);
 
         if (player.handCards.Count == 0)
         {
@@ -85,6 +99,7 @@ public class TienLenGameManager : MonoBehaviour
         }
 
         AdvanceTurnAfterAction();
+        AttachCurrentPlayerToLatestFeedback();
         return true;
     }
 
@@ -98,19 +113,24 @@ public class TienLenGameManager : MonoBehaviour
         if (tableCombination == null || !tableCombination.IsValid)
         {
             lastMessage = "You are leading this round. Play a valid set instead of passing.";
+            RecordFeedback(TienLenFeedbackKind.Invalid, currentPlayerIndex, currentPlayerIndex, "LEAD REQUIRED", lastMessage, null, 0);
             return false;
         }
 
         if (currentPlayerIndex == tableOwnerIndex)
         {
             lastMessage = "You won the trick. Play the next set.";
+            RecordFeedback(TienLenFeedbackKind.Invalid, currentPlayerIndex, currentPlayerIndex, "PLAY NEXT", lastMessage, null, 0);
             return false;
         }
 
+        int actorIndex = currentPlayerIndex;
         passed[currentPlayerIndex] = true;
         lastMessage = players[currentPlayerIndex].playerName + " passed.";
-        RuntimeSfx.Play(RuntimeSfxType.Click, 0.68f);
+        RecordFeedback(TienLenFeedbackKind.Pass, actorIndex, FindNextEligiblePlayer(actorIndex), "PASS", lastMessage, null, 0);
+        RuntimeSfx.Play(RuntimeSfxType.Pass, 0.68f);
         AdvanceTurnAfterAction();
+        AttachCurrentPlayerToLatestFeedback();
         return true;
     }
 
@@ -198,6 +218,11 @@ public class TienLenGameManager : MonoBehaviour
         return playerIndex >= 0 && playerIndex < passed.Length && passed[playerIndex];
     }
 
+    public TienLenFeedbackSnapshot GetFeedbackSnapshot()
+    {
+        return lastFeedback.Clone();
+    }
+
     private List<PlayingCardData> CreateDeck()
     {
         List<PlayingCardData> deck = new List<PlayingCardData>();
@@ -277,6 +302,7 @@ public class TienLenGameManager : MonoBehaviour
             player.finishRank = finishOrder;
             isGameOver = true;
             lastMessage = player.playerName + " wins instantly with " + reason + ".";
+            RecordFeedback(TienLenFeedbackKind.InstantWin, player.playerIndex, -1, "INSTANT WIN", lastMessage, player.handCards, player.finishRank);
             RuntimeSfx.Play(RuntimeSfxType.Win, 0.90f);
             return true;
         }
@@ -413,6 +439,7 @@ public class TienLenGameManager : MonoBehaviour
         player.hasFinished = true;
         player.finishRank = finishOrder;
         lastMessage += " " + player.playerName + " finished #" + player.finishRank + ".";
+        RecordFeedback(TienLenFeedbackKind.Finish, player.playerIndex, currentPlayerIndex, "FINISHED #" + player.finishRank, player.playerName + " finished #" + player.finishRank + ".", null, player.finishRank);
         RuntimeSfx.Play(RuntimeSfxType.Win, 0.78f);
 
         if (GetActivePlayerCount() <= 1)
@@ -427,6 +454,7 @@ public class TienLenGameManager : MonoBehaviour
 
             isGameOver = true;
             lastMessage += " Round complete.";
+            RecordFeedback(TienLenFeedbackKind.RoundComplete, player.playerIndex, -1, "ROUND COMPLETE", lastMessage, null, player.finishRank);
         }
     }
 
@@ -443,6 +471,7 @@ public class TienLenGameManager : MonoBehaviour
             ClearTrick();
             currentPlayerIndex = leader;
             lastMessage += " " + players[currentPlayerIndex].playerName + " leads next.";
+            RecordFeedback(TienLenFeedbackKind.NewTrick, leader, leader, "NEW TRICK", players[currentPlayerIndex].playerName + " leads next.", null, 0);
             return;
         }
 
@@ -572,5 +601,131 @@ public class TienLenGameManager : MonoBehaviour
         }
 
         return text;
+    }
+
+    private void RecordPlayFeedback(int actorIndex, TienLenCombination challenger, TienLenCombination previousCombination)
+    {
+        bool bomb = IsBombFeedback(challenger, previousCombination);
+        TienLenFeedbackKind kind = bomb ? TienLenFeedbackKind.Bomb : TienLenFeedbackKind.Play;
+        string title = GetCombinationFeedbackTitle(challenger, previousCombination, bomb);
+        string message = players[actorIndex].playerName + " played " + challenger.GetLabel() + ".";
+        RecordFeedback(kind, actorIndex, currentPlayerIndex, title, message, challenger.cards, 0, challenger);
+    }
+
+    private void RecordFeedback(
+        TienLenFeedbackKind kind,
+        int actorIndex,
+        int nextPlayerIndex,
+        string title,
+        string message,
+        List<PlayingCardData> cards,
+        int finishRank,
+        TienLenCombination combination = null)
+    {
+        feedbackVersion++;
+        lastFeedback = new TienLenFeedbackSnapshot
+        {
+            version = feedbackVersion,
+            kind = kind,
+            actorIndex = actorIndex,
+            nextPlayerIndex = nextPlayerIndex,
+            finishRank = finishRank,
+            title = title,
+            message = message
+        };
+
+        if (cards != null)
+        {
+            lastFeedback.cards = new List<PlayingCardData>(cards);
+        }
+
+        if (combination != null)
+        {
+            lastFeedback.combinationType = combination.type;
+            lastFeedback.pairRunLength = combination.PairRunLength;
+            lastFeedback.containsTwo = combination.ContainsTwo;
+        }
+    }
+
+    private void AttachCurrentPlayerToLatestFeedback()
+    {
+        if (isGameOver || lastFeedback == null)
+        {
+            return;
+        }
+
+        if (lastFeedback.kind == TienLenFeedbackKind.Play ||
+            lastFeedback.kind == TienLenFeedbackKind.Bomb ||
+            lastFeedback.kind == TienLenFeedbackKind.Pass ||
+            lastFeedback.kind == TienLenFeedbackKind.Finish)
+        {
+            lastFeedback.nextPlayerIndex = currentPlayerIndex;
+        }
+    }
+
+    private bool IsBombFeedback(TienLenCombination challenger, TienLenCombination previousCombination)
+    {
+        if (challenger == null || previousCombination == null || !previousCombination.IsValid)
+        {
+            return false;
+        }
+
+        bool previousSingleTwo = previousCombination.type == TienLenCombinationType.Single && previousCombination.ContainsTwo;
+        bool previousPairTwo = previousCombination.type == TienLenCombinationType.Pair && previousCombination.ContainsTwo;
+
+        if (challenger.type == TienLenCombinationType.FourKind)
+        {
+            return previousSingleTwo || previousPairTwo || previousCombination.type == TienLenCombinationType.FourKind;
+        }
+
+        if (challenger.type == TienLenCombinationType.ConsecutivePairs)
+        {
+            if (challenger.PairRunLength == 3 && previousSingleTwo)
+            {
+                return true;
+            }
+
+            return challenger.PairRunLength >= 4 &&
+                (previousSingleTwo || previousPairTwo || previousCombination.type == TienLenCombinationType.FourKind ||
+                 (previousCombination.type == TienLenCombinationType.ConsecutivePairs && previousCombination.PairRunLength == challenger.PairRunLength));
+        }
+
+        return false;
+    }
+
+    private string GetCombinationFeedbackTitle(TienLenCombination challenger, TienLenCombination previousCombination, bool bomb)
+    {
+        if (bomb && previousCombination != null && previousCombination.ContainsTwo)
+        {
+            return "CHAT HEO!";
+        }
+
+        if (challenger.type == TienLenCombinationType.FourKind)
+        {
+            return "TU QUY!";
+        }
+
+        if (challenger.type == TienLenCombinationType.ConsecutivePairs)
+        {
+            return challenger.PairRunLength + " DOI THONG!";
+        }
+
+        switch (challenger.type)
+        {
+            case TienLenCombinationType.Single:
+                return "SINGLE";
+
+            case TienLenCombinationType.Pair:
+                return "PAIR";
+
+            case TienLenCombinationType.Triple:
+                return "TRIPLE";
+
+            case TienLenCombinationType.Straight:
+                return "STRAIGHT";
+
+            default:
+                return "PLAYED";
+        }
     }
 }

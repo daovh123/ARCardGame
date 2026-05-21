@@ -11,6 +11,7 @@ public class MainMenuManager : MonoBehaviour
 
     private bool themeBuilt;
     private static CardSpriteDatabase cardDatabase;
+    private static TienLenThemeAssetDatabase tienLenThemeAssets;
     private Button tienLenButton;
 
     private void Start()
@@ -68,6 +69,7 @@ public class MainMenuManager : MonoBehaviour
         }
 
         cardDatabase = Resources.Load<CardSpriteDatabase>("CardSpriteDatabase");
+        tienLenThemeAssets = Resources.Load<TienLenThemeAssetDatabase>("TienLen/TienLenThemeAssetDatabase");
         ConfigureCanvas(canvas);
         BuildBackground(canvas.transform);
         BuildCardPreview(canvas.transform);
@@ -102,21 +104,61 @@ public class MainMenuManager : MonoBehaviour
 
     private void BuildBackground(Transform canvasTransform)
     {
-        RectTransform background = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_MenuBackground", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.13f, 0.14f, 1f));
-        background.SetAsFirstSibling();
-        SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        Texture2D menuBackgroundTexture = tienLenThemeAssets == null ? null : tienLenThemeAssets.menuBackgroundTexture;
+        if (menuBackgroundTexture == null && tienLenThemeAssets != null)
+        {
+            menuBackgroundTexture = tienLenThemeAssets.backgroundTexture;
+        }
 
-        RectTransform tableGlow = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuTableGlow", new Color(0.02f, 0.29f, 0.23f, 0.86f), new Color(0.18f, 0.95f, 0.86f, 0.42f), 34, 4);
-        tableGlow.SetSiblingIndex(1);
-        SetRect(tableGlow, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -70f), new Vector2(1040f, 440f));
-        AddShadow(tableGlow.gameObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -10f));
+        Sprite backgroundSprite = RuntimeUITheme.GetTextureSprite(menuBackgroundTexture, "menu_luxury_background");
+        if (backgroundSprite != null)
+        {
+            Image backgroundImage = RuntimeUITheme.CreateImage(canvasTransform, "Runtime_MenuBackgroundArt", backgroundSprite);
+            backgroundImage.preserveAspect = false;
+            backgroundImage.color = new Color(0.72f, 0.82f, 0.84f, 1f);
+            SetRect(backgroundImage.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            backgroundImage.transform.SetAsFirstSibling();
+        }
+        else
+        {
+            RectTransform background = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_MenuBackground", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.13f, 0.14f, 1f));
+            background.SetAsFirstSibling();
+            SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        }
 
-        Outline outline = tableGlow.gameObject.AddComponent<Outline>();
-        outline.effectColor = new Color(0.25f, 1f, 0.82f, 0.24f);
-        outline.effectDistance = new Vector2(5f, -5f);
+        RectTransform vignette = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_MenuVignette", new Color(0.01f, 0.02f, 0.02f, 0.32f), new Color(0f, 0f, 0f, 0.72f));
+        vignette.SetSiblingIndex(1);
+        SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        RectTransform actionPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.88f), new Color(1f, 0.78f, 0.28f, 0.38f), 26, 3);
-        actionPanel.SetSiblingIndex(2);
+        Texture2D menuTableTexture = tienLenThemeAssets == null ? null : tienLenThemeAssets.menuTableTexture;
+        if (menuTableTexture == null && tienLenThemeAssets != null)
+        {
+            menuTableTexture = tienLenThemeAssets.tableTexture;
+        }
+
+        Sprite tableSprite = RuntimeUITheme.GetTextureSprite(menuTableTexture, "menu_luxury_table");
+        if (tableSprite != null)
+        {
+            Image tableArt = RuntimeUITheme.CreateImage(canvasTransform, "Runtime_MenuTableArt", tableSprite);
+            tableArt.preserveAspect = true;
+            SetRect(tableArt.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -74f), new Vector2(1050f, 490f));
+            tableArt.transform.SetSiblingIndex(2);
+            AddShadow(tableArt.gameObject, new Color(0f, 0f, 0f, 0.58f), new Vector2(0f, -12f));
+        }
+        else
+        {
+            RectTransform tableGlow = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuTableGlow", new Color(0.02f, 0.29f, 0.23f, 0.86f), new Color(0.18f, 0.95f, 0.86f, 0.42f), 34, 4);
+            tableGlow.SetSiblingIndex(2);
+            SetRect(tableGlow, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -70f), new Vector2(1040f, 440f));
+            AddShadow(tableGlow.gameObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -10f));
+
+            Outline outline = tableGlow.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0.25f, 1f, 0.82f, 0.24f);
+            outline.effectDistance = new Vector2(5f, -5f);
+        }
+
+        RectTransform actionPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.92f), new Color(1f, 0.78f, 0.28f, 0.52f), 26, 3);
+        actionPanel.SetSiblingIndex(3);
         SetRect(actionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -76f), new Vector2(500f, 322f));
         AddShadow(actionPanel.gameObject, new Color(0f, 0f, 0f, 0.46f), new Vector2(0f, -8f));
     }
@@ -152,7 +194,7 @@ public class MainMenuManager : MonoBehaviour
             image.sprite = sprites[i];
             image.preserveAspect = i < 2;
             image.raycastTarget = false;
-            Vector2 size = i < 2 ? new Vector2(150f, 220f) : new Vector2(154f, 224f);
+            Vector2 size = new Vector2(150f, 220f);
             SetRect(image.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), positions[i], size);
             image.rectTransform.localRotation = Quaternion.Euler(0f, 0f, rotations[i]);
             AddShadow(image.gameObject, new Color(0f, 0f, 0f, 0.50f), new Vector2(0f, -8f));

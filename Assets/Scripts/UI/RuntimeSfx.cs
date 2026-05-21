@@ -10,7 +10,11 @@ public enum RuntimeSfxType
     Special,
     Turn,
     Win,
-    Uno
+    Uno,
+    Pass,
+    Bomb,
+    Lose,
+    RoundComplete
 }
 
 public static class RuntimeSfx
@@ -83,6 +87,18 @@ public static class RuntimeSfx
                 break;
             case RuntimeSfxType.Uno:
                 clip = LoadClip("uno", "uno-sfx-gamestart");
+                break;
+            case RuntimeSfxType.Pass:
+                clip = LoadClip("uno-sfx-arrowswitch", "sfx-card-select");
+                break;
+            case RuntimeSfxType.Bomb:
+                clip = LoadClip("uno-sfx-card-effect-uturn", "sfx-gamestart-end");
+                break;
+            case RuntimeSfxType.Lose:
+                clip = LoadClip("sfx-gamestart-end", "sfx-card-pick");
+                break;
+            case RuntimeSfxType.RoundComplete:
+                clip = LoadClip("sfx-ui-victory-token", "sfx-gamestart");
                 break;
         }
 
