@@ -19,11 +19,42 @@ public enum RuntimeSfxType
 
 public static class RuntimeSfx
 {
+    private const string EnabledPrefKey = "RuntimeSfx.Enabled";
+    private const string VolumePrefKey = "RuntimeSfx.Volume";
+    private const float DefaultVolume = 0.82f;
+
     private static readonly Dictionary<RuntimeSfxType, AudioClip> Clips = new Dictionary<RuntimeSfxType, AudioClip>();
     private static AudioSource source;
+    private static bool preferencesLoaded;
+    private static bool enabled = true;
+    private static float volume = DefaultVolume;
+
+    public static bool IsEnabled
+    {
+        get
+        {
+            LoadPreferences();
+            return enabled;
+        }
+    }
+
+    public static float Volume
+    {
+        get
+        {
+            LoadPreferences();
+            return volume;
+        }
+    }
 
     public static void Play(RuntimeSfxType type, float volume = 1f)
     {
+        LoadPreferences();
+        if (!enabled || RuntimeSfx.volume <= 0.001f)
+        {
+            return;
+        }
+
         EnsureSource();
 
         if (source == null)
@@ -36,6 +67,39 @@ public static class RuntimeSfx
         {
             source.PlayOneShot(clip, Mathf.Clamp01(volume));
         }
+    }
+
+    public static void SetEnabled(bool value)
+    {
+        LoadPreferences();
+        enabled = value;
+        PlayerPrefs.SetInt(EnabledPrefKey, enabled ? 1 : 0);
+        PlayerPrefs.Save();
+    }
+
+    public static void SetVolume(float value)
+    {
+        LoadPreferences();
+        volume = Mathf.Clamp01(value);
+        PlayerPrefs.SetFloat(VolumePrefKey, volume);
+        PlayerPrefs.Save();
+
+        if (source != null)
+        {
+            source.volume = volume;
+        }
+    }
+
+    private static void LoadPreferences()
+    {
+        if (preferencesLoaded)
+        {
+            return;
+        }
+
+        enabled = PlayerPrefs.GetInt(EnabledPrefKey, 1) == 1;
+        volume = Mathf.Clamp01(PlayerPrefs.GetFloat(VolumePrefKey, DefaultVolume));
+        preferencesLoaded = true;
     }
 
     private static void EnsureSource()
@@ -52,7 +116,7 @@ public static class RuntimeSfx
         source.playOnAwake = false;
         source.spatialBlend = 0f;
         source.ignoreListenerPause = true;
-        source.volume = 0.82f;
+        source.volume = volume;
     }
 
     private static AudioClip GetClip(RuntimeSfxType type)

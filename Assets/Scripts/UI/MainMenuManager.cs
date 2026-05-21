@@ -13,6 +13,10 @@ public class MainMenuManager : MonoBehaviour
     private static CardSpriteDatabase cardDatabase;
     private static TienLenThemeAssetDatabase tienLenThemeAssets;
     private Button tienLenButton;
+    private Button rulesButton;
+    private Button settingsButton;
+    private RectTransform rulesPanel;
+    private RuntimePauseMenu settingsPanel;
 
     private void Start()
     {
@@ -55,6 +59,18 @@ public class MainMenuManager : MonoBehaviour
         Application.Quit();
     }
 
+    private void OnRulesClicked()
+    {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        ShowRulesPanel(true);
+    }
+
+    private void OnSettingsClicked()
+    {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        ShowSettingsPanel(true);
+    }
+
     private void BuildRuntimeTheme()
     {
         if (themeBuilt)
@@ -75,6 +91,8 @@ public class MainMenuManager : MonoBehaviour
         BuildCardPreview(canvas.transform);
         StyleTitle(canvas.transform);
         StyleMenuButtons(canvas.transform);
+        BuildRulesPanel(canvas.transform);
+        BuildSettingsPanel(canvas.transform);
 
         themeBuilt = true;
     }
@@ -116,19 +134,19 @@ public class MainMenuManager : MonoBehaviour
             Image backgroundImage = RuntimeUITheme.CreateImage(canvasTransform, "Runtime_MenuBackgroundArt", backgroundSprite);
             backgroundImage.preserveAspect = false;
             backgroundImage.color = new Color(0.72f, 0.82f, 0.84f, 1f);
-            SetRect(backgroundImage.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            SetRect(backgroundImage.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
             backgroundImage.transform.SetAsFirstSibling();
         }
         else
         {
             RectTransform background = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_MenuBackground", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.13f, 0.14f, 1f));
             background.SetAsFirstSibling();
-            SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
         }
 
         RectTransform vignette = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_MenuVignette", new Color(0.01f, 0.02f, 0.02f, 0.32f), new Color(0f, 0f, 0f, 0.72f));
         vignette.SetSiblingIndex(1);
-        SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
 
         Texture2D menuTableTexture = tienLenThemeAssets == null ? null : tienLenThemeAssets.menuTableTexture;
         if (menuTableTexture == null && tienLenThemeAssets != null)
@@ -159,7 +177,7 @@ public class MainMenuManager : MonoBehaviour
 
         RectTransform actionPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_MenuActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.92f), new Color(1f, 0.78f, 0.28f, 0.52f), 26, 3);
         actionPanel.SetSiblingIndex(3);
-        SetRect(actionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -76f), new Vector2(500f, 322f));
+        SetRect(actionPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -76f), new Vector2(500f, 444f));
         AddShadow(actionPanel.gameObject, new Color(0f, 0f, 0f, 0.46f), new Vector2(0f, -8f));
     }
 
@@ -235,20 +253,156 @@ public class MainMenuManager : MonoBehaviour
             tienLenButton.onClick.AddListener(OnTienLenClicked);
         }
 
+        if (rulesButton == null)
+        {
+            rulesButton = CreateRuntimeButton(canvasTransform, "Runtime_RulesButton", "Rules");
+            rulesButton.onClick.AddListener(OnRulesClicked);
+        }
+
+        if (settingsButton == null)
+        {
+            settingsButton = CreateRuntimeButton(canvasTransform, "Runtime_SettingsButton", "Settings");
+            settingsButton.onClick.AddListener(OnSettingsClicked);
+        }
+
         StyleButton(playOfflineButton, new Color(1f, 0.76f, 0.18f, 1f), new Color(0.03f, 0.04f, 0.05f, 1f), "UNO Offline");
         StyleButton(tienLenButton, new Color(0.04f, 0.56f, 0.34f, 1f), Color.white, "Tien Len Mien Nam");
         StyleButton(multiplayerButton, new Color(0.08f, 0.48f, 0.92f, 1f), Color.white, "Multiplayer");
+        StyleButton(rulesButton, new Color(0.64f, 0.12f, 0.12f, 1f), Color.white, "Rules");
+        StyleButton(settingsButton, new Color(0.38f, 0.20f, 0.78f, 1f), Color.white, "Settings");
         StyleButton(quitButton, new Color(0.12f, 0.18f, 0.20f, 0.98f), Color.white, "Quit");
 
-        SetRect(playOfflineButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 38f), new Vector2(360f, 62f));
-        SetRect(tienLenButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -36f), new Vector2(360f, 62f));
-        SetRect(multiplayerButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(360f, 62f));
-        SetRect(quitButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -184f), new Vector2(360f, 62f));
+        SetRect(playOfflineButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 69f), new Vector2(360f, 50f));
+        SetRect(tienLenButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, 11f), new Vector2(360f, 50f));
+        SetRect(multiplayerButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -47f), new Vector2(360f, 50f));
+        SetRect(rulesButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -105f), new Vector2(360f, 50f));
+        SetRect(settingsButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -163f), new Vector2(360f, 50f));
+        SetRect(quitButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -221f), new Vector2(360f, 50f));
 
         playOfflineButton.transform.SetAsLastSibling();
         tienLenButton.transform.SetAsLastSibling();
         multiplayerButton.transform.SetAsLastSibling();
+        rulesButton.transform.SetAsLastSibling();
+        settingsButton.transform.SetAsLastSibling();
         quitButton.transform.SetAsLastSibling();
+    }
+
+    private void BuildRulesPanel(Transform canvasTransform)
+    {
+        if (rulesPanel != null)
+        {
+            return;
+        }
+
+        rulesPanel = RuntimeUITheme.CreatePanel(
+            canvasTransform,
+            "Runtime_RulesPanel",
+            new Color(0.01f, 0.04f, 0.05f, 0.97f),
+            new Color(1f, 0.78f, 0.28f, 0.70f),
+            28,
+            4);
+        SetRect(rulesPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -8f), new Vector2(1180f, 780f));
+        AddShadow(rulesPanel.gameObject, new Color(0f, 0f, 0f, 0.68f), new Vector2(0f, -12f));
+
+        TMP_Text title = CreateLabel(rulesPanel, "RULES", 36, RuntimeUITheme.Gold);
+        SetRect(title.rectTransform, new Vector2(0.05f, 0.88f), new Vector2(0.95f, 0.97f), Vector2.zero, Vector2.zero);
+
+        TMP_Text unoRules = CreateLabel(rulesPanel, BuildUnoRulesText(), 22, Color.white);
+        unoRules.alignment = TextAlignmentOptions.TopLeft;
+        unoRules.fontStyle = FontStyles.Normal;
+        unoRules.lineSpacing = -8f;
+        SetRect(unoRules.rectTransform, new Vector2(0.06f, 0.16f), new Vector2(0.48f, 0.86f), Vector2.zero, Vector2.zero);
+
+        TMP_Text tienLenRules = CreateLabel(rulesPanel, BuildTienLenRulesText(), 22, Color.white);
+        tienLenRules.alignment = TextAlignmentOptions.TopLeft;
+        tienLenRules.fontStyle = FontStyles.Normal;
+        tienLenRules.lineSpacing = -8f;
+        SetRect(tienLenRules.rectTransform, new Vector2(0.52f, 0.16f), new Vector2(0.94f, 0.86f), Vector2.zero, Vector2.zero);
+
+        Button closeButton = CreateRuntimeButton(rulesPanel, "Runtime_CloseRulesButton", "Close");
+        StyleButton(closeButton, RuntimeUITheme.Gold, RuntimeUITheme.Ink, "Close");
+        SetRect(closeButton.transform as RectTransform, new Vector2(0.5f, 0.04f), new Vector2(0.5f, 0.04f), Vector2.zero, new Vector2(260f, 56f));
+        closeButton.onClick.AddListener(() =>
+        {
+            RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+            ShowRulesPanel(false);
+        });
+
+        rulesPanel.gameObject.SetActive(false);
+    }
+
+    private void BuildSettingsPanel(Transform canvasTransform)
+    {
+        if (settingsPanel != null)
+        {
+            return;
+        }
+
+        settingsPanel = new RuntimePauseMenu();
+        settingsPanel.BuildSettings(canvasTransform, "MainMenuSettings", () => ShowSettingsPanel(false));
+    }
+
+    private string BuildUnoRulesText()
+    {
+        return "<b>UNO OFFLINE</b>\n\n" +
+            "- Match color, number, symbol, or play a Wild.\n" +
+            "- Wild and +4 may be played freely, then choose a color.\n" +
+            "- +2 and +4 stack together. The next player must stack another + card or draw the full penalty.\n" +
+            "- If a player cannot stack, Draw takes all stacked penalty cards and loses the turn.\n" +
+            "- If there is no stack and a player cannot play, Draw one card and lose the turn.\n" +
+            "- Skip skips the next player. Reverse changes direction.\n" +
+            "- Press UNO before playing your second-to-last card. Forgetting UNO draws 2 cards.\n" +
+            "- If the draw deck runs out, the discard pile is shuffled into a new deck.\n" +
+            "- A player with more than 25 cards loses.";
+    }
+
+    private string BuildTienLenRulesText()
+    {
+        return "<b>TIEN LEN MIEN NAM</b>\n\n" +
+            "- Four players use a 52-card deck. Rank order from low to high: 3, 4, ... A, 2.\n" +
+            "- Suit order for ties from low to high: Spades, Clubs, Diamonds, Hearts.\n" +
+            "- The player holding 3 of Spades starts, but may lead any valid set.\n" +
+            "- Valid sets: single, pair, triple, straight, four-kind, and consecutive pairs.\n" +
+            "- Beat with the same type and same card count at higher value, unless it is a chop.\n" +
+            "- Straights compare by highest card. 2 cannot be used in normal straights or consecutive pairs.\n" +
+            "- Three consecutive pairs can chop one 2.\n" +
+            "- Four consecutive pairs can chop one 2, a pair of 2s, or one four-kind.\n" +
+            "- Four-kind can chop one 2 or a pair of 2s. Four-kind can beat lower four-kind.\n" +
+            "- Consecutive pairs beat only the same length if not chopping.\n" +
+            "- Finishing with 2 is allowed. Three 2s may be played.\n" +
+            "- Instant win: four 2s, all red/all black 13-card hand, or 13-rank straight A-2-3-...-K.\n" +
+            "- When a player finishes, the remaining players continue until ranking is complete.";
+    }
+
+    private void ShowRulesPanel(bool visible)
+    {
+        if (rulesPanel == null)
+        {
+            return;
+        }
+
+        rulesPanel.gameObject.SetActive(visible);
+        if (visible)
+        {
+            rulesPanel.SetAsLastSibling();
+        }
+    }
+
+    private void ShowSettingsPanel(bool visible)
+    {
+        if (settingsPanel == null)
+        {
+            return;
+        }
+
+        if (visible)
+        {
+            settingsPanel.Show();
+        }
+        else
+        {
+            settingsPanel.Hide();
+        }
     }
 
     private Button CreateRuntimeButton(Transform parent, string name, string label)

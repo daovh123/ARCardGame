@@ -31,8 +31,9 @@ public class TienLenUIManager : MonoBehaviour
     private Button playButton;
     private Button passButton;
     private Button restartButton;
-    private Button menuButton;
+    private Button pauseButton;
     private RectTransform rankingPanel;
+    private RuntimePauseMenu pauseMenu;
     private RectTransform[] seatPanels;
     private TMP_Text[] seatNameTexts;
     private TMP_Text[] seatStatusTexts;
@@ -41,6 +42,8 @@ public class TienLenUIManager : MonoBehaviour
     private int seenFeedbackVersion;
     private Coroutine toastRoutine;
     private Coroutine tableFlashRoutine;
+    private Coroutine rankingFadeRoutine;
+    private Coroutine rankingScaleRoutine;
 
     public void Initialize(TienLenGameManager manager)
     {
@@ -104,16 +107,16 @@ public class TienLenUIManager : MonoBehaviour
             Image background = RuntimeUITheme.CreateImage(root, "TienLen_BackgroundArt", backgroundSprite);
             background.preserveAspect = false;
             background.color = new Color(0.72f, 0.82f, 0.84f, 1f);
-            RuntimeUITheme.SetRect(background.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            RuntimeUITheme.SetRect(background.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
         }
         else
         {
             RectTransform background = RuntimeUITheme.CreateGradient(root, "TienLen_Background", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.12f, 0.10f, 1f));
-            RuntimeUITheme.SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+            RuntimeUITheme.SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
         }
 
         RectTransform vignette = RuntimeUITheme.CreateGradient(root, "TienLen_BackgroundVignette", new Color(0.01f, 0.02f, 0.02f, 0.36f), new Color(0.00f, 0.00f, 0.00f, 0.72f));
-        RuntimeUITheme.SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        RuntimeUITheme.SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
     }
 
     private void BuildTable()
@@ -214,9 +217,9 @@ public class TienLenUIManager : MonoBehaviour
         RuntimeUITheme.SetRect(passButton.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-130f, -78f), new Vector2(204f, 58f));
         passButton.onClick.AddListener(OnPassClicked);
 
-        menuButton = CreateButton("TienLen_MenuButton", "Menu", new Color(0.08f, 0.16f, 0.18f, 0.98f), Color.white);
-        RuntimeUITheme.SetRect(menuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(92f, -36f), new Vector2(142f, 48f));
-        menuButton.onClick.AddListener(OnMenuClicked);
+        pauseButton = CreateButton("TienLen_PauseButton", "Pause", new Color(0.08f, 0.16f, 0.18f, 0.98f), Color.white);
+        RuntimeUITheme.SetRect(pauseButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(92f, -36f), new Vector2(142f, 48f));
+        pauseButton.onClick.AddListener(OnPauseClicked);
 
         restartButton = CreateButton("TienLen_RestartButton", "Restart", new Color(0.08f, 0.16f, 0.18f, 0.98f), Color.white);
         RuntimeUITheme.SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-96f, -36f), new Vector2(154f, 48f));
@@ -238,6 +241,9 @@ public class TienLenUIManager : MonoBehaviour
 
         toastText = RuntimeUITheme.CreateLabel(toastPanel, "ToastText", "", 24, Color.white);
         RuntimeUITheme.SetRect(toastText.rectTransform, new Vector2(0.06f, 0.10f), new Vector2(0.94f, 0.90f), Vector2.zero, Vector2.zero);
+
+        pauseMenu = new RuntimePauseMenu();
+        pauseMenu.Build(effectsLayer, "TienLen", OnPauseResumeClicked, OnRestartClicked, OnMenuClicked);
     }
 
     private Button CreateButton(string name, string label, Color fill, Color textColor)
@@ -301,7 +307,7 @@ public class TienLenUIManager : MonoBehaviour
 
             if (player.hasFinished)
             {
-                seatStatusTexts[i].text = player.finishRank == players.Count ? "LAST PLACE" : "FINISHED #" + player.finishRank;
+                seatStatusTexts[i].text = GetRankingStatusText(player.finishRank, players.Count);
             }
             else if (gameManager.HasPassed(i))
             {
@@ -312,7 +318,7 @@ public class TienLenUIManager : MonoBehaviour
                 seatStatusTexts[i].text = player.handCards.Count + " cards";
             }
 
-            seatStatusTexts[i].color = isCurrent ? RuntimeUITheme.Ink : new Color(0.78f, 0.96f, 1f, 0.92f);
+            seatStatusTexts[i].color = isCurrent ? RuntimeUITheme.Ink : GetSeatStatusColor(player, players.Count);
             seatPanels[i].localScale = isCurrent ? Vector3.one * 1.04f : Vector3.one;
         }
     }
@@ -597,6 +603,7 @@ public class TienLenUIManager : MonoBehaviour
     private void OnRestartClicked()
     {
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        SetPaused(false);
         selectedIndices.Clear();
         seenFeedbackVersion = 0;
         inputLocked = false;
@@ -608,8 +615,40 @@ public class TienLenUIManager : MonoBehaviour
     private void OnMenuClicked()
     {
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        SetPaused(false);
         GameModeSelection.CurrentMode = GameMode.Uno;
         SceneManager.LoadScene("MainMenuScene");
+    }
+
+    private void OnPauseClicked()
+    {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        SetPaused(true);
+    }
+
+    private void OnPauseResumeClicked()
+    {
+        SetPaused(false);
+    }
+
+    private void SetPaused(bool paused)
+    {
+        if (pauseMenu == null)
+        {
+            return;
+        }
+
+        if (paused)
+        {
+            pauseMenu.Show();
+        }
+        else
+        {
+            pauseMenu.Hide();
+        }
+
+        inputLocked = paused;
+        UpdateActionButtons();
     }
 
     private void UpdateActionButtons()
@@ -858,36 +897,241 @@ public class TienLenUIManager : MonoBehaviour
     {
         CloseRankingPanel();
 
-        rankingPanel = RuntimeUITheme.CreatePanel(effectsLayer, "TienLen_RankingPanel", new Color(0.01f, 0.04f, 0.05f, 0.96f), new Color(1f, 0.76f, 0.24f, 0.86f), 26, 4);
-        RuntimeUITheme.SetRect(rankingPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 430f));
-        RuntimeUITheme.AddShadow(rankingPanel.gameObject, new Color(0f, 0f, 0f, 0.62f), new Vector2(0f, -10f));
+        rankingPanel = RuntimeUITheme.CreatePanel(effectsLayer, "TienLen_RankingPanel", new Color(0.01f, 0.035f, 0.045f, 0.98f), new Color(1f, 0.76f, 0.24f, 0.90f), 30, 5);
+        RuntimeUITheme.SetRect(rankingPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 600f));
+        RuntimeUITheme.AddShadow(rankingPanel.gameObject, new Color(0f, 0f, 0f, 0.68f), new Vector2(0f, -14f));
         CanvasGroup group = rankingPanel.gameObject.AddComponent<CanvasGroup>();
         group.alpha = 0f;
 
-        TMP_Text title = RuntimeUITheme.CreateLabel(rankingPanel, "Title", "ROUND RESULTS", 34, RuntimeUITheme.Gold);
-        RuntimeUITheme.SetRect(title.rectTransform, new Vector2(0.08f, 0.82f), new Vector2(0.92f, 0.96f), Vector2.zero, Vector2.zero);
+        TMP_Text title = RuntimeUITheme.CreateLabel(rankingPanel, "Title", "ROUND COMPLETE", 40, RuntimeUITheme.Gold);
+        RuntimeUITheme.SetRect(title.rectTransform, new Vector2(0.08f, 0.86f), new Vector2(0.92f, 0.96f), Vector2.zero, Vector2.zero);
 
         List<TienLenPlayerData> players = new List<TienLenPlayerData>(gameManager.GetPlayers());
-        players.Sort((a, b) => a.finishRank.CompareTo(b.finishRank));
+        int playerCount = players.Count;
+        players.Sort((a, b) => GetSortRank(a, playerCount).CompareTo(GetSortRank(b, playerCount)));
+
+        TMP_Text subtitle = RuntimeUITheme.CreateLabel(rankingPanel, "Subtitle", BuildRankingSubtitle(players, playerCount), 23, Color.white);
+        RuntimeUITheme.SetRect(subtitle.rectTransform, new Vector2(0.10f, 0.79f), new Vector2(0.90f, 0.86f), Vector2.zero, Vector2.zero);
 
         for (int i = 0; i < players.Count; i++)
         {
-            TienLenPlayerData player = players[i];
-            string suffix = player.finishRank == 1 ? " WINNER" : (player.finishRank == players.Count ? " LAST PLACE" : "");
-            TMP_Text row = RuntimeUITheme.CreateLabel(rankingPanel, "Rank_" + i, player.finishRank + ". " + player.playerName + suffix, 24, Color.white);
-            RuntimeUITheme.SetRect(row.rectTransform, new Vector2(0.12f, 0.62f - i * 0.12f), new Vector2(0.88f, 0.72f - i * 0.12f), Vector2.zero, Vector2.zero);
-            row.alignment = TextAlignmentOptions.Left;
+            BuildRankingRow(players[i], i, playerCount);
         }
 
         Button restart = CreateOverlayButton(rankingPanel, "Play Again", RuntimeUITheme.Gold, RuntimeUITheme.Ink);
-        RuntimeUITheme.SetRect(restart.transform as RectTransform, new Vector2(0.16f, 0.07f), new Vector2(0.48f, 0.20f), Vector2.zero, Vector2.zero);
+        RuntimeUITheme.SetRect(restart.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-150f, -244f), new Vector2(270f, 62f));
         restart.onClick.AddListener(OnRestartClicked);
 
         Button menu = CreateOverlayButton(rankingPanel, "Menu", new Color(0.08f, 0.16f, 0.18f, 1f), Color.white);
-        RuntimeUITheme.SetRect(menu.transform as RectTransform, new Vector2(0.52f, 0.07f), new Vector2(0.84f, 0.20f), Vector2.zero, Vector2.zero);
+        RuntimeUITheme.SetRect(menu.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(150f, -244f), new Vector2(230f, 62f));
         menu.onClick.AddListener(OnMenuClicked);
 
-        StartCoroutine(FadeCanvas(group, 0f, 1f, 0.18f));
+        rankingFadeRoutine = StartCoroutine(FadeCanvas(group, 0f, 1f, 0.18f));
+        rankingScaleRoutine = StartCoroutine(ScaleRect(rankingPanel, Vector3.one * 0.94f, Vector3.one, 0.22f));
+    }
+
+    private void BuildRankingRow(TienLenPlayerData player, int rowIndex, int playerCount)
+    {
+        bool isLastPlace = player.finishRank == playerCount;
+        bool isWinner = player.finishRank == 1;
+        float y = 118f - rowIndex * 76f;
+
+        RectTransform row = RuntimeUITheme.CreatePanel(
+            rankingPanel,
+            "RankRow_" + rowIndex,
+            GetRankFill(player.finishRank, playerCount),
+            GetRankBorder(player.finishRank, playerCount),
+            18,
+            isWinner || isLastPlace ? 4 : 2);
+        RuntimeUITheme.SetRect(row, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(640f, 66f));
+        RuntimeUITheme.AddShadow(row.gameObject, new Color(0f, 0f, 0f, 0.32f), new Vector2(0f, -4f));
+
+        RectTransform badge = RuntimeUITheme.CreatePanel(
+            row,
+            "RankBadge",
+            GetRankBadgeFill(player.finishRank, playerCount),
+            new Color(1f, 0.94f, 0.68f, 0.82f),
+            16,
+            3);
+        RuntimeUITheme.SetRect(badge, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(58f, 0f), new Vector2(92f, 44f));
+
+        TMP_Text badgeText = RuntimeUITheme.CreateLabel(badge, "BadgeText", GetRankBadgeText(player.finishRank, playerCount), 24, GetRankBadgeTextColor(player.finishRank, playerCount));
+        RuntimeUITheme.SetRect(badgeText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        TMP_Text name = RuntimeUITheme.CreateLabel(row, "Name", player.playerName, 25, isLastPlace ? new Color(1f, 0.90f, 0.84f, 1f) : Color.white);
+        RuntimeUITheme.SetRect(name.rectTransform, new Vector2(0.20f, 0.46f), new Vector2(0.66f, 0.90f), Vector2.zero, Vector2.zero);
+        name.alignment = TextAlignmentOptions.Left;
+
+        TMP_Text status = RuntimeUITheme.CreateLabel(row, "Status", GetRankingStatusText(player.finishRank, playerCount), 19, GetRankAccent(player.finishRank, playerCount));
+        RuntimeUITheme.SetRect(status.rectTransform, new Vector2(0.20f, 0.10f), new Vector2(0.68f, 0.48f), Vector2.zero, Vector2.zero);
+        status.alignment = TextAlignmentOptions.Left;
+
+        TMP_Text cards = RuntimeUITheme.CreateLabel(row, "Cards", player.handCards.Count + " cards", 18, new Color(0.78f, 0.96f, 1f, 0.88f));
+        RuntimeUITheme.SetRect(cards.rectTransform, new Vector2(0.70f, 0.16f), new Vector2(0.94f, 0.84f), Vector2.zero, Vector2.zero);
+        cards.alignment = TextAlignmentOptions.Right;
+    }
+
+    private string BuildRankingSubtitle(List<TienLenPlayerData> players, int playerCount)
+    {
+        foreach (TienLenPlayerData player in players)
+        {
+            if (player.finishRank == 1)
+            {
+                return "Winner: " + player.playerName + "  |  Final Ranking";
+            }
+        }
+
+        return "Final Ranking";
+    }
+
+    private int GetSortRank(TienLenPlayerData player, int playerCount)
+    {
+        if (player.finishRank > 0)
+        {
+            return player.finishRank;
+        }
+
+        return playerCount + 1 + player.playerIndex;
+    }
+
+    private string GetRankBadgeText(int rank, int playerCount)
+    {
+        if (rank <= 0)
+        {
+            return "-";
+        }
+
+        return rank == playerCount ? "LAST" : "#" + rank;
+    }
+
+    private string GetRankingStatusText(int rank, int playerCount)
+    {
+        if (rank == 1)
+        {
+            return "#1 CHAMPION";
+        }
+
+        if (rank == playerCount)
+        {
+            return "LAST PLACE";
+        }
+
+        if (rank == 2)
+        {
+            return "#2 SECOND PLACE";
+        }
+
+        if (rank == 3)
+        {
+            return "#3 THIRD PLACE";
+        }
+
+        return rank > 0 ? "FINISHED #" + rank : "NOT RANKED";
+    }
+
+    private Color GetSeatStatusColor(TienLenPlayerData player, int playerCount)
+    {
+        if (!player.hasFinished)
+        {
+            return new Color(0.78f, 0.96f, 1f, 0.92f);
+        }
+
+        return GetRankAccent(player.finishRank, playerCount);
+    }
+
+    private Color GetRankFill(int rank, int playerCount)
+    {
+        if (rank == 1)
+        {
+            return new Color(0.22f, 0.15f, 0.02f, 0.96f);
+        }
+
+        if (rank == playerCount)
+        {
+            return new Color(0.22f, 0.03f, 0.04f, 0.92f);
+        }
+
+        return new Color(0.02f, 0.08f, 0.10f, 0.92f);
+    }
+
+    private Color GetRankBorder(int rank, int playerCount)
+    {
+        if (rank == 1)
+        {
+            return new Color(1f, 0.78f, 0.26f, 0.92f);
+        }
+
+        if (rank == playerCount)
+        {
+            return new Color(1f, 0.28f, 0.22f, 0.76f);
+        }
+
+        if (rank == 2)
+        {
+            return new Color(0.76f, 0.84f, 0.92f, 0.78f);
+        }
+
+        if (rank == 3)
+        {
+            return new Color(0.86f, 0.48f, 0.22f, 0.78f);
+        }
+
+        return new Color(0.18f, 0.95f, 0.86f, 0.34f);
+    }
+
+    private Color GetRankBadgeFill(int rank, int playerCount)
+    {
+        if (rank == 1)
+        {
+            return RuntimeUITheme.Gold;
+        }
+
+        if (rank == playerCount)
+        {
+            return RuntimeUITheme.Red;
+        }
+
+        if (rank == 2)
+        {
+            return new Color(0.80f, 0.86f, 0.94f, 1f);
+        }
+
+        if (rank == 3)
+        {
+            return new Color(0.80f, 0.44f, 0.20f, 1f);
+        }
+
+        return new Color(0.18f, 0.95f, 0.86f, 1f);
+    }
+
+    private Color GetRankBadgeTextColor(int rank, int playerCount)
+    {
+        return rank == playerCount ? Color.white : RuntimeUITheme.Ink;
+    }
+
+    private Color GetRankAccent(int rank, int playerCount)
+    {
+        if (rank == 1)
+        {
+            return RuntimeUITheme.Gold;
+        }
+
+        if (rank == playerCount)
+        {
+            return new Color(1f, 0.42f, 0.34f, 1f);
+        }
+
+        if (rank == 2)
+        {
+            return new Color(0.82f, 0.90f, 1f, 1f);
+        }
+
+        if (rank == 3)
+        {
+            return new Color(1f, 0.64f, 0.34f, 1f);
+        }
+
+        return new Color(0.78f, 0.96f, 1f, 0.92f);
     }
 
     private Button CreateOverlayButton(Transform parent, string label, Color fill, Color textColor)
@@ -904,6 +1148,18 @@ public class TienLenUIManager : MonoBehaviour
 
     private void CloseRankingPanel()
     {
+        if (rankingFadeRoutine != null)
+        {
+            StopCoroutine(rankingFadeRoutine);
+            rankingFadeRoutine = null;
+        }
+
+        if (rankingScaleRoutine != null)
+        {
+            StopCoroutine(rankingScaleRoutine);
+            rankingScaleRoutine = null;
+        }
+
         if (rankingPanel != null)
         {
             Destroy(rankingPanel.gameObject);
@@ -930,34 +1186,60 @@ public class TienLenUIManager : MonoBehaviour
 
     private IEnumerator FadeCanvas(CanvasGroup group, float from, float to, float duration)
     {
+        if (group == null)
+        {
+            yield break;
+        }
+
         float elapsed = 0f;
         group.alpha = from;
 
         while (elapsed < duration)
         {
+            if (group == null)
+            {
+                yield break;
+            }
+
             elapsed += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
             group.alpha = Mathf.Lerp(from, to, EaseOutCubic(t));
             yield return null;
         }
 
-        group.alpha = to;
+        if (group != null)
+        {
+            group.alpha = to;
+        }
     }
 
     private IEnumerator ScaleRect(RectTransform rect, Vector3 from, Vector3 to, float duration)
     {
+        if (rect == null)
+        {
+            yield break;
+        }
+
         float elapsed = 0f;
         rect.localScale = from;
 
         while (elapsed < duration)
         {
+            if (rect == null)
+            {
+                yield break;
+            }
+
             elapsed += Time.unscaledDeltaTime;
             float t = Mathf.Clamp01(elapsed / duration);
             rect.localScale = Vector3.LerpUnclamped(from, to, EaseOutCubic(t));
             yield return null;
         }
 
-        rect.localScale = to;
+        if (rect != null)
+        {
+            rect.localScale = to;
+        }
     }
 
     private IEnumerator ShakeRect(RectTransform rect, float strength, float duration)

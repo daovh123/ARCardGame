@@ -51,6 +51,11 @@ public class GameUIManager : MonoBehaviour
     private Coroutine toastRoutine;
     private string lastToastMessage = "";
     private int lastAnnouncedTurnIndex = -1;
+    private TMP_Text gameOverSubtitleText;
+    private RectTransform gameOverResultsPanel;
+    private Button gameOverMenuButton;
+    private RuntimePauseMenu pauseMenu;
+    private bool isPaused;
     private readonly Dictionary<string, Sprite> runtimeSprites = new Dictionary<string, Sprite>();
 
     private void OnEnable()
@@ -85,7 +90,7 @@ public class GameUIManager : MonoBehaviour
         drawButton.onClick.AddListener(OnDrawButtonClicked);
         restartButton.onClick.AddListener(OnRestartButtonClicked);
         gameOverRestartButton.onClick.AddListener(OnRestartButtonClicked);
-        backMenuButton.onClick.AddListener(OnBackMenuClicked);
+        backMenuButton.onClick.AddListener(OnPauseButtonClicked);
 
         gameOverPanel.SetActive(false);
 
@@ -121,7 +126,7 @@ public class GameUIManager : MonoBehaviour
 
         ResetPileScales();
 
-        bool isLocalTurn = gameManager.IsLocalPlayerTurn();
+        bool isLocalTurn = gameManager.IsLocalPlayerTurn() && !isPaused;
         bool isGameOver = gameManager.IsGameOver();
 
         currentTurnText.text = isLocalTurn
@@ -180,7 +185,7 @@ public class GameUIManager : MonoBehaviour
         {
             gameOverPanel.SetActive(true);
             gameOverPanel.transform.SetAsLastSibling();
-            winnerText.text = gameManager.GetLastMessage();
+            UpdateGameOverPanel();
         }
         else
         {
@@ -215,6 +220,7 @@ public class GameUIManager : MonoBehaviour
         BuildUnoButton(canvas.transform);
         BuildColorChoicePanel(canvas.transform);
         BuildToastPanel(canvas.transform);
+        BuildPausePanel(canvas.transform);
         StyleGameOverPanel();
 
         themeBuilt = true;
@@ -275,13 +281,13 @@ public class GameUIManager : MonoBehaviour
             : GetVerticalGradientSprite("game_bg", new Color(0.01f, 0.04f, 0.05f), new Color(0.02f, 0.12f, 0.13f));
         backgroundImage.preserveAspect = false;
         background.SetAsFirstSibling();
-        SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
 
         RectTransform vignette = CreatePanel(canvasTransform, "Runtime_BackgroundVignette", Color.white);
         Image vignetteImage = vignette.GetComponent<Image>();
         vignetteImage.sprite = GetVerticalGradientSprite("uno_bg_vignette", new Color(0.01f, 0.02f, 0.02f, 0.28f), new Color(0f, 0f, 0f, 0.68f));
         vignette.SetSiblingIndex(1);
-        SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        SetRect(vignette, Vector2.zero, Vector2.one, Vector2.zero, new Vector2(360f, 360f));
 
         Texture2D unoTableTexture = sharedTableAssets == null ? null : sharedTableAssets.unoTableTexture;
         if (unoTableTexture == null && sharedTableAssets != null)
@@ -514,10 +520,11 @@ public class GameUIManager : MonoBehaviour
         SetRect(drawButton.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -18f), new Vector2(148f, 56f));
 
         StyleButton(restartButton, new Color(0.05f, 0.16f, 0.20f, 0.96f), Color.white);
-        SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-92f, -34f), new Vector2(144f, 48f));
+        SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-96f, -36f), new Vector2(154f, 48f));
 
         StyleButton(backMenuButton, new Color(0.05f, 0.16f, 0.20f, 0.96f), Color.white);
-        SetRect(backMenuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(92f, -34f), new Vector2(144f, 48f));
+        SetButtonLabel(backMenuButton, "Pause");
+        SetRect(backMenuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(92f, -36f), new Vector2(142f, 48f));
     }
 
     private void BuildUnoButton(Transform canvasTransform)
@@ -592,6 +599,12 @@ public class GameUIManager : MonoBehaviour
         toastPanel.gameObject.SetActive(false);
     }
 
+    private void BuildPausePanel(Transform canvasTransform)
+    {
+        pauseMenu = new RuntimePauseMenu();
+        pauseMenu.Build(canvasTransform, "Uno", OnPauseResumeClicked, OnRestartButtonClicked, OnBackMenuClicked);
+    }
+
     private void CreateColorButton(Transform parent, CardColor color, string labelText, Vector2 position, Color fill, Color textColor)
     {
         GameObject buttonObject = new GameObject(labelText + "Button", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -621,27 +634,267 @@ public class GameUIManager : MonoBehaviour
         }
 
         RectTransform panelRect = gameOverPanel.transform as RectTransform;
-        SetRect(panelRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620f, 360f));
+        SetRect(panelRect, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 560f));
 
         Image image = gameOverPanel.GetComponent<Image>();
         if (image != null)
         {
-            image.sprite = GetRoundedRectSprite("game_over_panel", 360, 220, 28, new Color(0.02f, 0.04f, 0.06f, 0.97f), new Color(1f, 0.78f, 0.26f, 0.74f), 5);
+            image.sprite = GetRoundedRectSprite("game_over_panel", 420, 300, 30, new Color(0.01f, 0.035f, 0.045f, 0.98f), new Color(1f, 0.78f, 0.26f, 0.82f), 5);
             image.type = Image.Type.Sliced;
             image.color = Color.white;
         }
 
-        AddShadow(gameOverPanel, new Color(0f, 0f, 0f, 0.62f), new Vector2(0f, -10f));
+        AddShadow(gameOverPanel, new Color(0f, 0f, 0f, 0.68f), new Vector2(0f, -14f));
 
-        TMP_Text title = CreateLabel(gameOverPanel.transform, "MATCH COMPLETE", 34, new Color(1f, 0.82f, 0.36f, 1f));
-        SetRect(title.rectTransform, new Vector2(0.08f, 0.76f), new Vector2(0.92f, 0.94f), Vector2.zero, Vector2.zero);
+        TMP_Text title = CreateLabel(gameOverPanel.transform, "ROUND COMPLETE", 40, new Color(1f, 0.82f, 0.36f, 1f));
+        SetRect(title.rectTransform, new Vector2(0.08f, 0.86f), new Vector2(0.92f, 0.96f), Vector2.zero, Vector2.zero);
         title.fontStyle = FontStyles.Bold;
 
-        StyleText(winnerText, 36, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
-        SetRect(winnerText.rectTransform, new Vector2(0.08f, 0.38f), new Vector2(0.92f, 0.72f), Vector2.zero, Vector2.zero);
+        gameOverSubtitleText = CreateLabel(gameOverPanel.transform, "Final standings", 23, Color.white);
+        SetRect(gameOverSubtitleText.rectTransform, new Vector2(0.10f, 0.79f), new Vector2(0.90f, 0.86f), Vector2.zero, Vector2.zero);
+
+        StyleText(winnerText, 30, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+        SetRect(winnerText.rectTransform, new Vector2(0.08f, 0.70f), new Vector2(0.92f, 0.78f), Vector2.zero, Vector2.zero);
+
+        gameOverResultsPanel = RuntimeUITheme.CreatePanel(gameOverPanel.transform, "Uno_GameOverResults", new Color(0.01f, 0.04f, 0.05f, 0.58f), new Color(0.18f, 0.95f, 0.86f, 0.20f), 18, 2);
+        RuntimeUITheme.SetRect(gameOverResultsPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, -34f), new Vector2(650f, 230f));
 
         StyleButton(gameOverRestartButton, new Color(1f, 0.74f, 0.18f, 1f), Color.black);
-        SetRect(gameOverRestartButton.transform as RectTransform, new Vector2(0.5f, 0.18f), new Vector2(0.5f, 0.18f), Vector2.zero, new Vector2(260f, 62f));
+        SetButtonLabel(gameOverRestartButton, "Play Again");
+        SetRect(gameOverRestartButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-150f, -228f), new Vector2(270f, 62f));
+
+        if (gameOverMenuButton == null)
+        {
+            gameOverMenuButton = CreateGameOverButton(gameOverPanel.transform, "Uno_GameOverMenuButton", "Menu", new Color(0.08f, 0.16f, 0.18f, 1f), Color.white);
+            gameOverMenuButton.onClick.AddListener(OnBackMenuClicked);
+        }
+
+        SetRect(gameOverMenuButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(150f, -228f), new Vector2(230f, 62f));
+    }
+
+    private void UpdateGameOverPanel()
+    {
+        if (gameManager == null)
+        {
+            return;
+        }
+
+        PlayerData winner = GetUnoFirstPlace();
+        if (winnerText != null)
+        {
+            winnerText.text = winner == null ? gameManager.GetLastMessage() : "Winner: " + winner.playerName;
+        }
+
+        if (gameOverSubtitleText != null)
+        {
+            gameOverSubtitleText.text = "Final Standings";
+        }
+
+        RefreshGameOverRows();
+    }
+
+    private void RefreshGameOverRows()
+    {
+        if (gameOverResultsPanel == null || gameManager == null)
+        {
+            return;
+        }
+
+        ClearRuntimeChildren(gameOverResultsPanel);
+
+        List<PlayerData> players = new List<PlayerData>(gameManager.GetPlayers());
+        int playerCount = players.Count;
+        players.Sort((a, b) => GetUnoSortRank(a, playerCount).CompareTo(GetUnoSortRank(b, playerCount)));
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            BuildUnoResultRow(players[i], i, playerCount);
+        }
+    }
+
+    private void BuildUnoResultRow(PlayerData player, int rowIndex, int playerCount)
+    {
+        float y = 75f - rowIndex * 50f;
+        bool isWinner = player.finishRank == 1;
+        bool isLast = player.isLastPlace || player.finishRank == playerCount;
+
+        RectTransform row = RuntimeUITheme.CreatePanel(
+            gameOverResultsPanel,
+            "Uno_ResultRow_" + rowIndex,
+            GetUnoRankFill(player, playerCount),
+            GetUnoRankBorder(player, playerCount),
+            15,
+            isWinner || isLast ? 3 : 2);
+        RuntimeUITheme.SetRect(row, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0f, y), new Vector2(590f, 44f));
+
+        RectTransform badge = RuntimeUITheme.CreatePanel(row, "Badge", GetUnoBadgeFill(player, playerCount), new Color(1f, 0.94f, 0.68f, 0.70f), 12, 2);
+        RuntimeUITheme.SetRect(badge, new Vector2(0f, 0.5f), new Vector2(0f, 0.5f), new Vector2(44f, 0f), new Vector2(66f, 30f));
+
+        TMP_Text badgeText = RuntimeUITheme.CreateLabel(badge, "BadgeText", GetUnoBadgeText(player, playerCount), 18, isLast ? Color.white : RuntimeUITheme.Ink);
+        RuntimeUITheme.SetRect(badgeText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        TMP_Text name = RuntimeUITheme.CreateLabel(row, "Name", player.playerName, 20, Color.white);
+        RuntimeUITheme.SetRect(name.rectTransform, new Vector2(0.16f, 0.12f), new Vector2(0.48f, 0.88f), Vector2.zero, Vector2.zero);
+        name.alignment = TextAlignmentOptions.Left;
+
+        TMP_Text status = RuntimeUITheme.CreateLabel(row, "Status", GetUnoRankingStatus(player, playerCount), 17, GetUnoRankAccent(player, playerCount));
+        RuntimeUITheme.SetRect(status.rectTransform, new Vector2(0.50f, 0.12f), new Vector2(0.78f, 0.88f), Vector2.zero, Vector2.zero);
+        status.alignment = TextAlignmentOptions.Left;
+
+        TMP_Text cards = RuntimeUITheme.CreateLabel(row, "Cards", player.handCards.Count + " cards", 16, new Color(0.78f, 0.96f, 1f, 0.88f));
+        RuntimeUITheme.SetRect(cards.rectTransform, new Vector2(0.78f, 0.12f), new Vector2(0.96f, 0.88f), Vector2.zero, Vector2.zero);
+        cards.alignment = TextAlignmentOptions.Right;
+    }
+
+    private Button CreateGameOverButton(Transform parent, string name, string label, Color fill, Color textColor)
+    {
+        GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+
+        GameObject labelObject = new GameObject("Text", typeof(RectTransform), typeof(TextMeshProUGUI));
+        labelObject.transform.SetParent(buttonObject.transform, false);
+        SetRect(labelObject.transform as RectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+
+        Button button = buttonObject.GetComponent<Button>();
+        StyleButton(button, fill, textColor);
+        SetButtonLabel(button, label);
+        return button;
+    }
+
+    private PlayerData GetUnoFirstPlace()
+    {
+        foreach (PlayerData player in gameManager.GetPlayers())
+        {
+            if (player.finishRank == 1)
+            {
+                return player;
+            }
+        }
+
+        return null;
+    }
+
+    private int GetUnoSortRank(PlayerData player, int playerCount)
+    {
+        if (player.finishRank > 0)
+        {
+            return player.finishRank;
+        }
+
+        if (player.isEliminated || player.isLastPlace)
+        {
+            return playerCount;
+        }
+
+        return playerCount + 1 + player.playerIndex;
+    }
+
+    private string GetUnoBadgeText(PlayerData player, int playerCount)
+    {
+        if (player.isEliminated)
+        {
+            return "OUT";
+        }
+
+        if (player.isLastPlace || player.finishRank == playerCount)
+        {
+            return "LAST";
+        }
+
+        return player.finishRank > 0 ? "#" + player.finishRank : "-";
+    }
+
+    private string GetUnoRankingStatus(PlayerData player, int playerCount)
+    {
+        if (player.finishRank == 1)
+        {
+            return "#1 WINNER";
+        }
+
+        if (player.isEliminated)
+        {
+            return "OUT";
+        }
+
+        if (player.isLastPlace || player.finishRank == playerCount)
+        {
+            return "LAST PLACE";
+        }
+
+        return player.finishRank > 0 ? "FINISHED #" + player.finishRank : "ACTIVE";
+    }
+
+    private Color GetUnoRankFill(PlayerData player, int playerCount)
+    {
+        if (player.finishRank == 1)
+        {
+            return new Color(0.22f, 0.15f, 0.02f, 0.96f);
+        }
+
+        if (player.isEliminated || player.isLastPlace || player.finishRank == playerCount)
+        {
+            return new Color(0.22f, 0.03f, 0.04f, 0.92f);
+        }
+
+        return new Color(0.02f, 0.08f, 0.10f, 0.90f);
+    }
+
+    private Color GetUnoRankBorder(PlayerData player, int playerCount)
+    {
+        if (player.finishRank == 1)
+        {
+            return new Color(1f, 0.78f, 0.26f, 0.92f);
+        }
+
+        if (player.isEliminated || player.isLastPlace || player.finishRank == playerCount)
+        {
+            return new Color(1f, 0.28f, 0.22f, 0.76f);
+        }
+
+        return new Color(0.18f, 0.95f, 0.86f, 0.34f);
+    }
+
+    private Color GetUnoBadgeFill(PlayerData player, int playerCount)
+    {
+        if (player.finishRank == 1)
+        {
+            return RuntimeUITheme.Gold;
+        }
+
+        if (player.isEliminated || player.isLastPlace || player.finishRank == playerCount)
+        {
+            return RuntimeUITheme.Red;
+        }
+
+        return new Color(0.18f, 0.95f, 0.86f, 1f);
+    }
+
+    private Color GetUnoRankAccent(PlayerData player, int playerCount)
+    {
+        if (player.finishRank == 1)
+        {
+            return RuntimeUITheme.Gold;
+        }
+
+        if (player.isEliminated || player.isLastPlace || player.finishRank == playerCount)
+        {
+            return new Color(1f, 0.42f, 0.34f, 1f);
+        }
+
+        return new Color(0.78f, 0.96f, 1f, 0.92f);
+    }
+
+    private void ClearRuntimeChildren(Transform parent)
+    {
+        if (parent == null)
+        {
+            return;
+        }
+
+        for (int i = parent.childCount - 1; i >= 0; i--)
+        {
+            Destroy(parent.GetChild(i).gameObject);
+        }
     }
 
     private void UpdateTopCardVisual(CardData card)
@@ -1421,6 +1674,7 @@ public class GameUIManager : MonoBehaviour
     private void OnRestartButtonClicked()
     {
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        SetPaused(false);
         HideColorChoice();
         gameManager.StartOfflineGame();
         RefreshUI();
@@ -1429,6 +1683,7 @@ public class GameUIManager : MonoBehaviour
     private void OnBackMenuClicked()
     {
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        SetPaused(false);
 
         if (PhotonNetwork.InRoom)
         {
@@ -1438,6 +1693,38 @@ public class GameUIManager : MonoBehaviour
         else
         {
             SceneManager.LoadScene("MainMenuScene");
+        }
+    }
+
+    private void OnPauseButtonClicked()
+    {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
+        HideColorChoice();
+        SetPaused(true);
+    }
+
+    private void OnPauseResumeClicked()
+    {
+        SetPaused(false);
+        RefreshUI();
+    }
+
+    private void SetPaused(bool paused)
+    {
+        isPaused = paused;
+
+        if (pauseMenu == null)
+        {
+            return;
+        }
+
+        if (paused)
+        {
+            pauseMenu.Show();
+        }
+        else
+        {
+            pauseMenu.Hide();
         }
     }
 
