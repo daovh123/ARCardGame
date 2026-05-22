@@ -123,7 +123,18 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         PhotonNetwork.JoinRoom(roomCode);
         messageText.text = "Joining room " + roomCode + "...";
     }
+    public void CopyRoomCodeToClipboard()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+        {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
+            messageText.text = "No room code available.";
+            return;
+        }
 
+        GUIUtility.systemCopyBuffer = PhotonNetwork.CurrentRoom.Name;
+        messageText.text = "Room code copied to clipboard!";
+    }
     public override void OnJoinedRoom()
     {
         isReady = false;
