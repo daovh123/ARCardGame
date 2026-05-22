@@ -8,6 +8,7 @@ using Photon.Realtime;
 
 public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 {
+    private const string PlayerNameKey = "PlayerName";
     [Header("Texts")]
     public TMP_Text connectionStatusText;
     public TMP_Text roomCodeText;
@@ -31,7 +32,8 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
     private void Start()
     {
         BuildRuntimeTheme();
-
+        LoadSavedPlayerName();
+        playerNameInput.onValueChanged.AddListener(OnPlayerNameChanged);
         createRoomButton.onClick.AddListener(OnCreateRoomClicked);
         joinRoomButton.onClick.AddListener(OnJoinRoomClicked);
         readyButton.onClick.AddListener(OnReadyClicked);
@@ -50,6 +52,18 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         ConnectToPhoton();
     }
 
+    private void LoadSavedPlayerName()
+    {
+        if (PlayerPrefs.HasKey(PlayerNameKey))
+        {
+            playerNameInput.text = PlayerPrefs.GetString(PlayerNameKey);
+        }
+    }
+
+    private void OnPlayerNameChanged(string value)
+    {
+        PlayerPrefs.SetString(PlayerNameKey, value);
+    }
     private void ConnectToPhoton()
     {
         if (!PhotonNetwork.IsConnected)
