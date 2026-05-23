@@ -148,6 +148,9 @@ public class ARTableController : MonoBehaviour
     {
         Transform targetAnchor = effectRoot != null ? effectRoot : transform;
 
+        // Spawn colorful confetti particles
+        SpawnVictoryParticles(targetAnchor.position);
+
         // Instantiate celebration floating text
         GameObject winTextObj = new GameObject("VictoryText");
         winTextObj.transform.position = targetAnchor.position + Vector3.up * 0.1f;
@@ -163,6 +166,64 @@ public class ARTableController : MonoBehaviour
 
         // Add a simple animated floating/pulse effect
         StartCoroutine(AnimateVictoryBillboard(winTextObj));
+    }
+
+    private void SpawnVictoryParticles(Vector3 position)
+    {
+        GameObject particlesObj = new GameObject("VictoryConfettiParticles");
+        particlesObj.transform.position = position;
+
+        ParticleSystem ps = particlesObj.AddComponent<ParticleSystem>();
+        
+        // Configure Particle System
+        var main = ps.main;
+        main.startColor = new ParticleSystem.MinMaxGradient(Color.yellow, Color.red);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.01f, 0.03f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(1.0f, 2.0f);
+        main.gravityModifier = 0.6f;
+        main.duration = 4.0f;
+        main.loop = true;
+
+        var emission = ps.emission;
+        emission.rateOverTime = 60f;
+
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Cone;
+        shape.angle = 20f;
+        shape.radius = 0.15f;
+
+        var colorOverLifetime = ps.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+        Gradient grad = new Gradient();
+        grad.SetKeys(
+            new GradientColorKey[] { 
+                new GradientColorKey(new Color(1f, 0.85f, 0f), 0.0f), // Gold
+                new GradientColorKey(Color.red, 0.33f), 
+                new GradientColorKey(Color.cyan, 0.66f),
+                new GradientColorKey(Color.magenta, 1.0f) 
+            },
+            new GradientAlphaKey[] { 
+                new GradientAlphaKey(1.0f, 0.0f), 
+                new GradientAlphaKey(1.0f, 0.7f), 
+                new GradientAlphaKey(0.0f, 1.0f) 
+            }
+        );
+        colorOverLifetime.color = grad;
+
+        // Configure renderer
+        ParticleSystemRenderer psr = particlesObj.GetComponent<ParticleSystemRenderer>();
+        if (psr != null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit");
+            if (shader == null) shader = Shader.Find("Particles/Standard Unlit");
+            if (shader == null) shader = Shader.Find("Sprites/Default");
+            
+            Material particleMat = new Material(shader);
+            psr.sharedMaterial = particleMat;
+        }
+
+        ps.Play();
+        Destroy(particlesObj, 8f);
     }
 
     private IEnumerator AnimateCardPlay(CardData card, Transform startSlot, Transform targetPile)

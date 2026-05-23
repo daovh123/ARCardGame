@@ -1,5 +1,7 @@
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public static class ARCardVisualTestEditor
 {
@@ -274,5 +276,51 @@ public static class ARCardVisualTestEditor
         visual.Initialize(mockCard);
 
         return cardObj;
+    }
+
+    [MenuItem("Window/AR Visual/Generate Test Scene")]
+    public static void GenerateTestScene()
+    {
+        // 1. Ensure scene folder exists
+        string sceneFolder = "Assets/Scenes";
+        if (!AssetDatabase.IsValidFolder(sceneFolder))
+        {
+            AssetDatabase.CreateFolder("Assets", "Scenes");
+        }
+
+        // 2. Create new blank scene with default lights & camera
+        Scene newScene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+
+        // 3. Position Main Camera tilted looking down at the table
+        GameObject cameraObj = GameObject.FindWithTag("MainCamera");
+        if (cameraObj != null)
+        {
+            cameraObj.transform.position = new Vector3(0f, 0.35f, -0.45f);
+            cameraObj.transform.rotation = Quaternion.Euler(38f, 0f, 0f);
+        }
+
+        // 4. Load and Instantiate Table Prefab
+        string tablePrefabPath = "Assets/Prefabs/ARVisual/ARTableRoot.prefab";
+        GameObject tablePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(tablePrefabPath);
+        if (tablePrefab != null)
+        {
+            GameObject tableInstance = (GameObject)PrefabUtility.InstantiatePrefab(tablePrefab);
+            tableInstance.transform.position = Vector3.zero;
+            tableInstance.transform.rotation = Quaternion.identity;
+        }
+        else
+        {
+            Debug.LogWarning("[ARCardVisualTestEditor] ARTableRoot prefab not found. Please generate the table prefab first.");
+        }
+
+        // 5. Create Mock Helper GameObject and attach test helper script
+        GameObject testHelperObj = new GameObject("ARVisualTestHelper");
+        testHelperObj.AddComponent<ARVisualTestHelper>();
+
+        // 6. Save scene
+        string scenePath = sceneFolder + "/ARVisualTestScene.unity";
+        EditorSceneManager.SaveScene(newScene, scenePath);
+
+        Debug.Log($"[ARCardVisualTestEditor] Successfully generated test scene: {scenePath}");
     }
 }
