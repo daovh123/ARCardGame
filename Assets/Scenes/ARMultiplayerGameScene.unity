@@ -209,7 +209,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ARImageTableTracker
   trackedImageManager: {fileID: 813483213}
-  arTableRootPrefab: {fileID: 387655503150208047, guid: 7b9e4b0112db6bf4a8d278d8d3c6dd09, type: 3}
+  arTableRootPrefab: {fileID: 1374902084862388768, guid: 1c7139b395c95a94488ce16641fbec3b, type: 3}
   tableMarkerName: TableMarker
   keepTableAfterFirstDetection: 1
 --- !u!4 &195479155
