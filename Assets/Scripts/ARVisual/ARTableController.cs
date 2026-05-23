@@ -57,7 +57,15 @@ public class ARTableController : MonoBehaviour
             if (slot != null)
             {
                 indicatorTargetPos = slot.position + Vector3.up * turnIndicatorHeightOffset;
+
+                // Add a hover/bobbing offset to make the active slot indicator breathe/hover
+                float bobbingOffset = 0.012f * Mathf.Sin(Time.time * 4f);
+                indicatorTargetPos.y += bobbingOffset;
+
                 turnIndicator.position = Vector3.Lerp(turnIndicator.position, indicatorTargetPos, Time.deltaTime * indicatorTransitionSpeed);
+
+                // Slow rotation to make the ring feel dynamic and alive
+                turnIndicator.Rotate(Vector3.up, Time.deltaTime * 30f, Space.World);
             }
         }
     }
