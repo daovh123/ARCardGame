@@ -53,6 +53,198 @@ public static class ARCardVisualTestEditor
         Debug.Log($"[ARCardVisualTestEditor] Successfully generated and saved prefab to: {prefabPath}");
     }
 
+    [MenuItem("Window/AR Visual/Generate Table Prefab")]
+    public static void GenerateTablePrefab()
+    {
+        // 1. Create directories
+        string parentFolder = "Assets/Prefabs";
+        string targetFolder = "Assets/Prefabs/ARVisual";
+        string matParentFolder = "Assets/Materials";
+        string matTargetFolder = "Assets/Materials/ARVisual";
+
+        if (!AssetDatabase.IsValidFolder(parentFolder))
+            AssetDatabase.CreateFolder("Assets", "Prefabs");
+        if (!AssetDatabase.IsValidFolder(targetFolder))
+            AssetDatabase.CreateFolder(parentFolder, "ARVisual");
+        if (!AssetDatabase.IsValidFolder(matParentFolder))
+            AssetDatabase.CreateFolder("Assets", "Materials");
+        if (!AssetDatabase.IsValidFolder(matTargetFolder))
+            AssetDatabase.CreateFolder(matParentFolder, "ARVisual");
+
+        // 2. Create the table GameObject setup
+        GameObject tableRoot = new GameObject("ARTableRoot");
+        
+        // Attach scripts
+        ARTableController controller = tableRoot.AddComponent<ARTableController>();
+        tableRoot.AddComponent<ARGameEventBridge>();
+
+        // 3. Table Surface
+        GameObject surfaceObj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        surfaceObj.name = "TableSurface";
+        surfaceObj.transform.SetParent(tableRoot.transform);
+        surfaceObj.transform.localScale = new Vector3(0.5f, 0.02f, 0.35f);
+        surfaceObj.transform.localPosition = new Vector3(0f, -0.01f, 0f);
+        
+        // Remove cube collider to avoid interference, or convert to trigger
+        Collider surfaceCollider = surfaceObj.GetComponent<Collider>();
+        if (surfaceCollider != null)
+        {
+            Object.DestroyImmediate(surfaceCollider);
+        }
+
+        // Create sleek surface material
+        string matPath = matTargetFolder + "/TableSurfaceMat.mat";
+        Material tableMat = AssetDatabase.LoadAssetAtPath<Material>(matPath);
+        if (tableMat == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+            tableMat = new Material(shader);
+            tableMat.color = new Color(0.12f, 0.12f, 0.14f); // Carbon/Slate Dark Grey
+            tableMat.SetFloat("_Metallic", 0.6f);
+            if (shader.name.Contains("Universal"))
+                tableMat.SetFloat("_Smoothness", 0.7f);
+            else
+                tableMat.SetFloat("_Glossiness", 0.7f);
+            AssetDatabase.CreateAsset(tableMat, matPath);
+        }
+        surfaceObj.GetComponent<Renderer>().sharedMaterial = tableMat;
+        controller.tableSurface = surfaceObj.transform;
+
+        // 4. ARDrawPile
+        GameObject drawPileObj = new GameObject("ARDrawPile");
+        drawPileObj.transform.SetParent(tableRoot.transform);
+        drawPileObj.transform.localPosition = new Vector3(-0.18f, 0f, 0.12f);
+        
+        // Add a simple visual deck (stack of cards)
+        GameObject drawPileVisual = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        drawPileVisual.name = "VisualDeck";
+        drawPileVisual.transform.SetParent(drawPileObj.transform);
+        drawPileVisual.transform.localPosition = Vector3.zero;
+        drawPileVisual.transform.localScale = new Vector3(0.06f, 0.015f, 0.09f);
+        
+        Collider deckCollider = drawPileVisual.GetComponent<Collider>();
+        if (deckCollider != null) Object.DestroyImmediate(deckCollider);
+
+        string deckMatPath = matTargetFolder + "/DeckMat.mat";
+        Material deckMat = AssetDatabase.LoadAssetAtPath<Material>(deckMatPath);
+        if (deckMat == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+            deckMat = new Material(shader);
+            deckMat.color = new Color(0.15f, 0.35f, 0.7f); // Modern Blue deck back
+            AssetDatabase.CreateAsset(deckMat, deckMatPath);
+        }
+        drawPileVisual.GetComponent<Renderer>().sharedMaterial = deckMat;
+        controller.drawPile = drawPileObj.transform;
+
+        // 5. ARDiscardPile
+        GameObject discardPileObj = new GameObject("ARDiscardPile");
+        discardPileObj.transform.SetParent(tableRoot.transform);
+        discardPileObj.transform.localPosition = Vector3.zero;
+        controller.discardPile = discardPileObj.transform;
+
+        // 6. PlayerSlots
+        GameObject playerSlotsRoot = new GameObject("PlayerSlots");
+        playerSlotsRoot.transform.SetParent(tableRoot.transform);
+        playerSlotsRoot.transform.localPosition = Vector3.zero;
+
+        Transform[] slots = new Transform[4];
+        
+        // Player 0 (South - Bottom)
+        GameObject slot0 = new GameObject("PlayerSlot_0");
+        slot0.transform.SetParent(playerSlotsRoot.transform);
+        slot0.transform.localPosition = new Vector3(0f, 0.01f, -0.22f); // Slightly above surface
+        slot0.transform.localRotation = Quaternion.LookRotation(Vector3.forward); // Facing north (towards center)
+        slots[0] = slot0.transform;
+
+        // Player 1 (West - Left)
+        GameObject slot1 = new GameObject("PlayerSlot_1");
+        slot1.transform.SetParent(playerSlotsRoot.transform);
+        slot1.transform.localPosition = new Vector3(-0.3f, 0.01f, 0f);
+        slot1.transform.localRotation = Quaternion.LookRotation(Vector3.right); // Facing east (towards center)
+        slots[1] = slot1.transform;
+
+        // Player 2 (North - Top)
+        GameObject slot2 = new GameObject("PlayerSlot_2");
+        slot2.transform.SetParent(playerSlotsRoot.transform);
+        slot2.transform.localPosition = new Vector3(0f, 0.01f, 0.22f);
+        slot2.transform.localRotation = Quaternion.LookRotation(Vector3.back); // Facing south (towards center)
+        slots[2] = slot2.transform;
+
+        // Player 3 (East - Right)
+        GameObject slot3 = new GameObject("PlayerSlot_3");
+        slot3.transform.SetParent(playerSlotsRoot.transform);
+        slot3.transform.localPosition = new Vector3(0.3f, 0.01f, 0f);
+        slot3.transform.localRotation = Quaternion.LookRotation(Vector3.left); // Facing west (towards center)
+        slots[3] = slot3.transform;
+
+        controller.playerSlots = slots;
+
+        // 7. ARTurnIndicator
+        GameObject turnIndicatorObj = new GameObject("ARTurnIndicator");
+        turnIndicatorObj.transform.SetParent(tableRoot.transform);
+        turnIndicatorObj.transform.localPosition = new Vector3(0f, 0.05f, -0.22f);
+        
+        GameObject indicatorVisual = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        indicatorVisual.name = "VisualRing";
+        indicatorVisual.transform.SetParent(turnIndicatorObj.transform);
+        indicatorVisual.transform.localPosition = Vector3.zero;
+        indicatorVisual.transform.localScale = new Vector3(0.08f, 0.002f, 0.08f);
+        
+        Collider ringCollider = indicatorVisual.GetComponent<Collider>();
+        if (ringCollider != null) Object.DestroyImmediate(ringCollider);
+
+        string indicatorMatPath = matTargetFolder + "/TurnIndicatorMat.mat";
+        Material indicatorMat = AssetDatabase.LoadAssetAtPath<Material>(indicatorMatPath);
+        if (indicatorMat == null)
+        {
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) shader = Shader.Find("Standard");
+            indicatorMat = new Material(shader);
+            indicatorMat.color = new Color(0f, 1f, 0.5f); // Neon green
+            indicatorMat.EnableKeyword("_EMISSION");
+            indicatorMat.SetColor("_EmissionColor", new Color(0f, 0.8f, 0.4f) * 2f);
+            AssetDatabase.CreateAsset(indicatorMat, indicatorMatPath);
+        }
+        indicatorVisual.GetComponent<Renderer>().sharedMaterial = indicatorMat;
+        controller.turnIndicator = turnIndicatorObj.transform;
+
+        // 8. AREffectRoot
+        GameObject effectRootObj = new GameObject("AREffectRoot");
+        effectRootObj.transform.SetParent(tableRoot.transform);
+        effectRootObj.transform.localPosition = new Vector3(0f, 0.05f, 0f);
+        controller.effectRoot = effectRootObj.transform;
+
+        // 9. Attach Card Prefab (if existing)
+        string cardPrefabPath = targetFolder + "/ARCardPrefab.prefab";
+        GameObject cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(cardPrefabPath);
+        if (cardPrefab != null)
+        {
+            controller.cardPrefab = cardPrefab;
+        }
+        else
+        {
+            string fallbackPath = "Assets/Prefabs/AR/ARCardVisualPrefab.prefab";
+            GameObject fallbackPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(fallbackPath);
+            if (fallbackPrefab != null)
+            {
+                controller.cardPrefab = fallbackPrefab;
+            }
+        }
+
+        // 10. Save table as prefab
+        string tablePrefabPath = targetFolder + "/ARTableRoot.prefab";
+        PrefabUtility.SaveAsPrefabAsset(tableRoot, tablePrefabPath);
+
+        // Clean up
+        Object.DestroyImmediate(tableRoot);
+        AssetDatabase.Refresh();
+
+        Debug.Log($"[ARCardVisualTestEditor] Successfully generated and saved table prefab to: {tablePrefabPath}");
+    }
+
     private static GameObject CreateCardObject()
     {
         // 1. Create root object
