@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class ARVisualTestHelper : MonoBehaviour
 {
@@ -7,21 +8,24 @@ public class ARVisualTestHelper : MonoBehaviour
 
     private void Update()
     {
+        var keyboard = Keyboard.current;
+        if (keyboard == null) return;
+
         // Press 0, 1, 2, 3 to trigger play card for that player index
-        if (Input.GetKeyDown(KeyCode.Alpha0) || Input.GetKeyDown(KeyCode.Keypad0)) TriggerPlayCard(0);
-        if (Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Keypad1)) TriggerPlayCard(1);
-        if (Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Keypad2)) TriggerPlayCard(2);
-        if (Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Keypad3)) TriggerPlayCard(3);
+        if (keyboard.digit0Key.wasPressedThisFrame || keyboard.numpad0Key.wasPressedThisFrame) TriggerPlayCard(0);
+        if (keyboard.digit1Key.wasPressedThisFrame || keyboard.numpad1Key.wasPressedThisFrame) TriggerPlayCard(1);
+        if (keyboard.digit2Key.wasPressedThisFrame || keyboard.numpad2Key.wasPressedThisFrame) TriggerPlayCard(2);
+        if (keyboard.digit3Key.wasPressedThisFrame || keyboard.numpad3Key.wasPressedThisFrame) TriggerPlayCard(3);
 
         // Press D to trigger draw card for the current player
-        if (Input.GetKeyDown(KeyCode.D))
+        if (keyboard.dKey.wasPressedThisFrame)
         {
             Debug.Log($"[Mock Test] Triggering CardDrawn for Player {currentPlayerIndex + 1}");
             GameEvents.CardDrawn(currentPlayerIndex);
         }
 
         // Press T to switch turns to the next player
-        if (Input.GetKeyDown(KeyCode.T))
+        if (keyboard.tKey.wasPressedThisFrame)
         {
             currentPlayerIndex = (currentPlayerIndex + 1) % 4;
             Debug.Log($"[Mock Test] Triggering TurnChanged to Player {currentPlayerIndex + 1}");
@@ -29,7 +33,7 @@ public class ARVisualTestHelper : MonoBehaviour
         }
 
         // Press W to trigger game over with a victory celebration
-        if (Input.GetKeyDown(KeyCode.W))
+        if (keyboard.wKey.wasPressedThisFrame)
         {
             string[] names = { "Antigravity", "AlphaCoder", "MasterChief", "DoomSlayer" };
             string randomWinner = names[Random.Range(0, names.Length)];

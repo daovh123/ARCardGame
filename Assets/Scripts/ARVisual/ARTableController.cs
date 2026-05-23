@@ -174,6 +174,7 @@ public class ARTableController : MonoBehaviour
         particlesObj.transform.position = position;
 
         ParticleSystem ps = particlesObj.AddComponent<ParticleSystem>();
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         
         // Configure Particle System
         var main = ps.main;
