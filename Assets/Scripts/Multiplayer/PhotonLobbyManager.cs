@@ -16,7 +16,7 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
     public TMP_Text roomCodeText;
     public TMP_Text playerListText;
     public TMP_Text messageText;
-
+    public Button copyRoomCodeButton;
     [Header("Input")]
     public TMP_InputField roomCodeInput;
     public TMP_InputField playerNameInput;
@@ -128,6 +128,18 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
         PhotonNetwork.JoinRoom(roomCode);
         messageText.text = "Joining room " + roomCode + "...";
+    }
+        public void CopyRoomCodeToClipboard()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+        {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
+            messageText.text = "No room code available.";
+            return;
+        }
+
+        GUIUtility.systemCopyBuffer = PhotonNetwork.CurrentRoom.Name;
+        messageText.text = "Room code copied to clipboard!";
     }
     public void CopyRoomCodeToClipboard()
     {
@@ -524,7 +536,23 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
         RuntimeUITheme.StyleText(roomCodeText, 35, new Color(1f, 0.82f, 0.34f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
         RuntimeUITheme.SetRect(roomCodeText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, 190f), new Vector2(480f, 52f));
+        if (copyRoomCodeButton != null)
+        {
+            RectTransform roomRect = roomCodeText.rectTransform;
+            RectTransform copyRect = copyRoomCodeButton.transform as RectTransform;
+            if (copyRect != null && roomRect != null)
+            {
+                float spacing = 18f;
+                Vector2 roomSize = roomRect.sizeDelta;
+                Vector2 copySize = copyRect.sizeDelta;
+                Vector2 roomPos = roomRect.anchoredPosition;
 
+                copyRect.anchorMin = roomRect.anchorMin;
+                copyRect.anchorMax = roomRect.anchorMax;
+                copyRect.pivot = roomRect.pivot;
+                copyRect.anchoredPosition = new Vector2(roomPos.x + (roomSize.x * 0.5f) + spacing + (copySize.x * 0.5f), roomPos.y);
+            }
+        }
         RuntimeUITheme.StyleText(playerListText, 26, Color.white, TextAlignmentOptions.TopLeft, FontStyles.Bold);
         RuntimeUITheme.SetRect(playerListText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, -72f), new Vector2(460f, 420f));
 
