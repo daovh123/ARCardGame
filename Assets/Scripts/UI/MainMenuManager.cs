@@ -1,4 +1,4 @@
-using System.Collections;
+                                                    using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
@@ -566,9 +566,8 @@ public class MainMenuManager : MonoBehaviour
         private float downScale = 0.95f;
         private bool isPointerOver;
         private Coroutine scaleRoutine;
-        private const float BrightenAmount = 0.18f;
-        private static readonly Color HoverLightTextColor = new Color(0.05f, 0.05f, 0.05f, 1f);
-        private static readonly Color HoverDarkTextColor = new Color(1f, 0.85f, 0.4f, 1f);
+        private static readonly Color HoverBackgroundColor = new Color(1f, 0.85f, 0.4f, 1f);
+        private static readonly Color HoverTextColor = new Color(0.05f, 0.05f, 0.05f, 1f);
 
         public void Configure(float newHoverScale, float newDownScale)
         {
@@ -619,8 +618,17 @@ public class MainMenuManager : MonoBehaviour
         {
             isPointerOver = true;
             AnimateScale(hoverScale);
-            SetLabelColor(GetHoverTextColor());
-            SetBackgroundColor(BrightenColor(baseBackgroundColor));
+            if (background != null)
+            {
+                baseBackgroundColor = background.color;
+                SetBackgroundColor(HoverBackgroundColor);
+            }
+
+            if (label != null && background != null)
+            {
+                baseColor = label.color;
+                SetLabelColor(HoverTextColor);
+            }
         }
 
         public void OnPointerExit(PointerEventData eventData)
@@ -663,29 +671,6 @@ public class MainMenuManager : MonoBehaviour
             }
 
             background.color = color;
-        }
-
-        private Color GetHoverTextColor()
-        {
-            if (IsLightColor(baseBackgroundColor))
-            {
-                return HoverLightTextColor;
-            }
-
-            return HoverDarkTextColor;
-        }
-
-        private bool IsLightColor(Color color)
-        {
-            float luminance = (0.2126f * color.r) + (0.7152f * color.g) + (0.0722f * color.b);
-            return luminance >= 0.62f;
-        }
-
-        private Color BrightenColor(Color color)
-        {
-            Color bright = Color.Lerp(color, Color.white, BrightenAmount);
-            bright.a = color.a;
-            return bright;
         }
 
         private void AnimateScale(float scaleMultiplier)

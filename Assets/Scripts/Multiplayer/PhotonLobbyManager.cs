@@ -483,23 +483,28 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
     private void BuildBackground(Transform canvasTransform)
     {
-        RectTransform background = RuntimeUITheme.CreateGradient(canvasTransform, "Runtime_LobbyBackground", new Color(0.01f, 0.03f, 0.04f, 1f), new Color(0.03f, 0.13f, 0.14f, 1f));
+        Color glassFill = new Color(0f, 0f, 0f, 0.60f);
+        Color glassBorder = new Color(1f, 1f, 1f, 0.14f);
+
+        RectTransform background = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyBackground", glassFill, glassBorder, 36, 2);
         background.SetAsFirstSibling();
         RuntimeUITheme.SetRect(background, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
 
-        RectTransform leftPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyPlayersPanel", new Color(0.01f, 0.04f, 0.05f, 0.90f), new Color(0.18f, 0.95f, 0.86f, 0.36f), 26, 3);
+        RectTransform leftPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyPlayersPanel", glassFill, glassBorder, 28, 2);
         leftPanel.SetSiblingIndex(1);
         RuntimeUITheme.SetRect(leftPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-350f, -20f), new Vector2(560f, 610f));
         RuntimeUITheme.AddShadow(leftPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -8f));
 
-        RectTransform rightPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyActionPanel", new Color(0.01f, 0.04f, 0.05f, 0.90f), new Color(1f, 0.78f, 0.28f, 0.40f), 26, 3);
+        RectTransform rightPanel = RuntimeUITheme.CreatePanel(canvasTransform, "Runtime_LobbyActionPanel", glassFill, glassBorder, 28, 2);
         rightPanel.SetSiblingIndex(2);
         RuntimeUITheme.SetRect(rightPanel, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -20f), new Vector2(560f, 610f));
         RuntimeUITheme.AddShadow(rightPanel.gameObject, new Color(0f, 0f, 0f, 0.44f), new Vector2(0f, -8f));
 
         TMP_Text title = ResolveLobbyTitle(canvasTransform);
         title.text = "Multiplayer Lobby";
-        RuntimeUITheme.StyleText(title, 54, Color.white, TextAlignmentOptions.Center, FontStyles.Bold);
+        RuntimeUITheme.StyleText(title, 54, new Color(0.28f, 0.92f, 1f, 1f), TextAlignmentOptions.Center, FontStyles.Bold);
+        title.fontWeight = FontWeight.Black;
+        title.characterSpacing = 6f;
         RuntimeUITheme.SetRect(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -96f), new Vector2(900f, 74f));
         RuntimeUITheme.AddShadow(title.gameObject, new Color(0f, 0f, 0f, 0.60f), new Vector2(0f, -5f));
         title.transform.SetAsLastSibling();
@@ -659,9 +664,8 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         private float downScale = 0.95f;
         private bool isPointerOver;
         private Coroutine scaleRoutine;
-        private const float BrightenAmount = 0.18f;
-        private static readonly Color HoverLightTextColor = new Color(0.05f, 0.05f, 0.05f, 1f);
-        private static readonly Color HoverDarkTextColor = new Color(1f, 0.85f, 0.4f, 1f);
+        private static readonly Color HoverBackgroundColor = new Color(1f, 0.85f, 0.4f, 1f);
+        private static readonly Color HoverTextColor = new Color(0.05f, 0.05f, 0.05f, 1f);
 
         public void Configure(float newHoverScale, float newDownScale)
         {
@@ -712,8 +716,17 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         {
             isPointerOver = true;
             AnimateScale(hoverScale);
-            SetLabelColor(GetHoverTextColor());
-            SetBackgroundColor(BrightenColor(baseBackgroundColor));
+            if (background != null)
+            {
+                baseBackgroundColor = background.color;
+                SetBackgroundColor(HoverBackgroundColor);
+            }
+
+            if (label != null && background != null)
+            {
+                baseColor = label.color;
+                SetLabelColor(HoverTextColor);
+            }
         }
 
         public void OnPointerExit(PointerEventData eventData)
@@ -756,29 +769,6 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
             }
 
             background.color = color;
-        }
-
-        private Color GetHoverTextColor()
-        {
-            if (IsLightColor(baseBackgroundColor))
-            {
-                return HoverLightTextColor;
-            }
-
-            return HoverDarkTextColor;
-        }
-
-        private bool IsLightColor(Color color)
-        {
-            float luminance = (0.2126f * color.r) + (0.7152f * color.g) + (0.0722f * color.b);
-            return luminance >= 0.62f;
-        }
-
-        private Color BrightenColor(Color color)
-        {
-            Color bright = Color.Lerp(color, Color.white, BrightenAmount);
-            bright.a = color.a;
-            return bright;
         }
 
         private void AnimateScale(float scaleMultiplier)
