@@ -141,6 +141,29 @@ public class ARTableController : MonoBehaviour
         StartCoroutine(AnimateCardDraw(targetSlot, drawPile));
     }
 
+    public void ShowTopDiscardCard(CardData card)
+    {
+        if (card == null || discardPile == null || cardPrefab == null)
+        {
+            return;
+        }
+
+        GameObject cardInstance = Instantiate(
+            cardPrefab,
+            discardPile.position,
+            discardPile.rotation,
+            transform
+        );
+
+        ARCardVisual cardVisual = cardInstance.GetComponent<ARCardVisual>();
+        if (cardVisual != null)
+        {
+            cardVisual.Initialize(card);
+        }
+
+        activeDiscardedCards.Add(cardInstance);
+    }
+
     /// <summary>
     /// Triggers celebration text/effects when a player wins the game.
     /// </summary>

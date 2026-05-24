@@ -59,9 +59,9 @@ public class ARImageTableTracker : MonoBehaviour
             HandleTrackedImage(trackedImage);
         }
 
-        foreach (ARTrackedImage trackedImage in args.removed)
+        foreach (var removedImage in args.removed)
         {
-            HandleRemovedImage(trackedImage);
+            HandleRemovedImage(removedImage.Value);
         }
     }
 
