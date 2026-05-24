@@ -1,6 +1,8 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 
 public class MainMenuManager : MonoBehaviour
@@ -21,6 +23,7 @@ public class MainMenuManager : MonoBehaviour
     private void Start()
     {
         BuildRuntimeTheme();
+        ApplyMainMenuButtonInteractions();
 
         playOfflineButton.onClick.AddListener(OnPlayOfflineClicked);
         multiplayerButton.onClick.AddListener(OnMultiplayerClicked);
@@ -287,6 +290,32 @@ public class MainMenuManager : MonoBehaviour
         quitButton.transform.SetAsLastSibling();
     }
 
+    private void ApplyMainMenuButtonInteractions()
+    {
+        AttachMainMenuButtonFx(playOfflineButton);
+        AttachMainMenuButtonFx(tienLenButton);
+        AttachMainMenuButtonFx(multiplayerButton);
+        AttachMainMenuButtonFx(rulesButton);
+        AttachMainMenuButtonFx(settingsButton);
+        AttachMainMenuButtonFx(quitButton);
+    }
+
+    private void AttachMainMenuButtonFx(Button button)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        MainMenuButtonFx fx = button.GetComponent<MainMenuButtonFx>();
+        if (fx == null)
+        {
+            fx = button.gameObject.AddComponent<MainMenuButtonFx>();
+        }
+
+        fx.Configure(1.05f, 0.95f);
+    }
+
     private void BuildRulesPanel(Transform canvasTransform)
     {
         if (rulesPanel != null)
@@ -520,5 +549,188 @@ public class MainMenuManager : MonoBehaviour
         rect.pivot = pivot ?? new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
+    }
+
+    private sealed class MainMenuButtonFx : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler
+    {
+        private const float ScaleDuration = 0.08f;
+        private const float ClickReturnDuration = 0.10f;
+
+        private RectTransform target;
+        private TMP_Text label;
+        private Image background;
+        private Vector3 baseScale;
+        private Color baseColor;
+        private Color baseBackgroundColor;
+        private float hoverScale = 1.05f;
+        private float downScale = 0.95f;
+        private bool isPointerOver;
+        private Coroutine scaleRoutine;
+        private const float BrightenAmount = 0.18f;
+        private static readonly Color HoverLightTextColor = new Color(0.05f, 0.05f, 0.05f, 1f);
+        private static readonly Color HoverDarkTextColor = new Color(1f, 0.85f, 0.4f, 1f);
+
+        public void Configure(float newHoverScale, float newDownScale)
+        {
+            hoverScale = newHoverScale;
+            downScale = newDownScale;
+            CacheReferences();
+        }
+
+        private void Awake()
+        {
+            CacheReferences();
+        }
+
+        private void CacheReferences()
+        {
+            if (target == null)
+            {
+                target = transform as RectTransform;
+            }
+
+            if (label == null)
+            {
+                label = GetComponentInChildren<TMP_Text>();
+            }
+
+            if (background == null)
+            {
+                background = GetComponent<Image>();
+            }
+
+            if (target != null)
+            {
+                baseScale = target.localScale;
+            }
+
+            if (label != null)
+            {
+                baseColor = label.color;
+            }
+
+            if (background != null)
+            {
+                baseBackgroundColor = background.color;
+            }
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            isPointerOver = true;
+            AnimateScale(hoverScale);
+            SetLabelColor(GetHoverTextColor());
+            SetBackgroundColor(BrightenColor(baseBackgroundColor));
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            isPointerOver = false;
+            AnimateScale(1f);
+            SetLabelColor(baseColor);
+            SetBackgroundColor(baseBackgroundColor);
+        }
+
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            AnimateScale(downScale);
+            if (gameObject.activeInHierarchy)
+            {
+                StartCoroutine(ClickPulse());
+            }
+        }
+
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            AnimateScale(isPointerOver ? hoverScale : 1f);
+        }
+
+        private void SetLabelColor(Color color)
+        {
+            if (label == null)
+            {
+                return;
+            }
+
+            label.color = color;
+        }
+
+        private void SetBackgroundColor(Color color)
+        {
+            if (background == null)
+            {
+                return;
+            }
+
+            background.color = color;
+        }
+
+        private Color GetHoverTextColor()
+        {
+            if (IsLightColor(baseBackgroundColor))
+            {
+                return HoverLightTextColor;
+            }
+
+            return HoverDarkTextColor;
+        }
+
+        private bool IsLightColor(Color color)
+        {
+            float luminance = (0.2126f * color.r) + (0.7152f * color.g) + (0.0722f * color.b);
+            return luminance >= 0.62f;
+        }
+
+        private Color BrightenColor(Color color)
+        {
+            Color bright = Color.Lerp(color, Color.white, BrightenAmount);
+            bright.a = color.a;
+            return bright;
+        }
+
+        private void AnimateScale(float scaleMultiplier)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            Vector3 targetScale = baseScale * scaleMultiplier;
+            if (scaleRoutine != null)
+            {
+                StopCoroutine(scaleRoutine);
+            }
+
+            scaleRoutine = StartCoroutine(ScaleRoutine(targetScale, ScaleDuration));
+        }
+
+        private IEnumerator ScaleRoutine(Vector3 targetScale, float duration)
+        {
+            Vector3 start = target.localScale;
+            float time = 0f;
+
+            while (time < duration)
+            {
+                time += Time.unscaledDeltaTime;
+                float t = Mathf.Clamp01(time / duration);
+                target.localScale = Vector3.Lerp(start, targetScale, t);
+                yield return null;
+            }
+
+            target.localScale = targetScale;
+        }
+
+        private IEnumerator ClickPulse()
+        {
+            yield return new WaitForSecondsRealtime(0.06f);
+            float returnScale = isPointerOver ? hoverScale : 1f;
+
+            if (scaleRoutine != null)
+            {
+                StopCoroutine(scaleRoutine);
+            }
+
+            scaleRoutine = StartCoroutine(ScaleRoutine(baseScale * returnScale, ClickReturnDuration));
+        }
     }
 }
