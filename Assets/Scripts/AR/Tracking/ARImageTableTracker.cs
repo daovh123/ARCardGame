@@ -1,21 +1,29 @@
+using System;
 using UnityEngine;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
 public class ARImageTableTracker : MonoBehaviour
 {
+    public static event Action<GameObject> OnTableSpawned;
+
+    [Header("AR Tracking")]
     [SerializeField] private ARTrackedImageManager trackedImageManager;
+
+    [Header("Table")]
     [SerializeField] private GameObject arTableRootPrefab;
     [SerializeField] private string tableMarkerName = "TableMarker";
     [SerializeField] private bool keepTableAfterFirstDetection = true;
 
     private GameObject spawnedTable;
+    private bool hasDetectedTable;
+    private bool hasNotifiedTableSpawned;
 
     private void Awake()
     {
         if (trackedImageManager == null)
         {
-            trackedImageManager = FindAnyObjectByType<ARTrackedImageManager>();
+            trackedImageManager = FindObjectOfType<ARTrackedImageManager>();
         }
     }
 
@@ -23,7 +31,11 @@ public class ARImageTableTracker : MonoBehaviour
     {
         if (trackedImageManager != null)
         {
-            trackedImageManager.trackedImagesChanged += OnTrackedImagesChanged;
+            trackedImageManager.trackablesChanged.AddListener(OnTrackedImagesChanged);
+        }
+        else
+        {
+            Debug.LogError("[ARImageTableTracker] Missing ARTrackedImageManager reference.");
         }
     }
 
@@ -31,59 +43,109 @@ public class ARImageTableTracker : MonoBehaviour
     {
         if (trackedImageManager != null)
         {
-            trackedImageManager.trackedImagesChanged -= OnTrackedImagesChanged;
+            trackedImageManager.trackablesChanged.RemoveListener(OnTrackedImagesChanged);
         }
     }
 
-    private void OnTrackedImagesChanged(ARTrackedImagesChangedEventArgs args)
+    private void OnTrackedImagesChanged(ARTrackablesChangedEventArgs<ARTrackedImage> args)
     {
         foreach (ARTrackedImage trackedImage in args.added)
         {
-            TryUpdateTable(trackedImage);
+            HandleTrackedImage(trackedImage);
         }
 
         foreach (ARTrackedImage trackedImage in args.updated)
         {
-            TryUpdateTable(trackedImage);
+            HandleTrackedImage(trackedImage);
         }
 
         foreach (ARTrackedImage trackedImage in args.removed)
         {
-            if (!keepTableAfterFirstDetection && spawnedTable != null)
-            {
-                spawnedTable.SetActive(false);
-            }
+            HandleRemovedImage(trackedImage);
         }
     }
 
-    private void TryUpdateTable(ARTrackedImage trackedImage)
+    private void HandleTrackedImage(ARTrackedImage trackedImage)
     {
-        if (trackedImage.referenceImage.name != tableMarkerName)
+        if (trackedImage == null || trackedImage.referenceImage.name != tableMarkerName)
         {
             return;
         }
 
         if (trackedImage.trackingState != TrackingState.Tracking)
         {
-            return;
-        }
+            if (!keepTableAfterFirstDetection && spawnedTable != null)
+            {
+                spawnedTable.SetActive(false);
+            }
 
-        if (arTableRootPrefab == null)
-        {
-            Debug.LogError("[AR] Missing AR table root prefab.");
             return;
         }
 
         if (spawnedTable == null)
         {
-            spawnedTable = Instantiate(arTableRootPrefab);
+            SpawnTable(trackedImage);
+        }
+        else
+        {
+            UpdateTablePose(trackedImage);
+        }
+
+        spawnedTable.SetActive(true);
+        hasDetectedTable = true;
+
+        if (!hasNotifiedTableSpawned)
+        {
+            hasNotifiedTableSpawned = true;
+            OnTableSpawned?.Invoke(spawnedTable);
+        }
+    }
+
+    private void SpawnTable(ARTrackedImage trackedImage)
+    {
+        if (arTableRootPrefab == null)
+        {
+            Debug.LogError("[ARImageTableTracker] Missing AR table root prefab.");
+            return;
+        }
+
+        spawnedTable = Instantiate(
+            arTableRootPrefab,
+            trackedImage.transform.position,
+            trackedImage.transform.rotation
+        );
+
+        Debug.Log("[ARImageTableTracker] Spawned AR table on marker: " + trackedImage.referenceImage.name);
+    }
+
+    private void UpdateTablePose(ARTrackedImage trackedImage)
+    {
+        if (spawnedTable == null)
+        {
+            return;
+        }
+
+        if (keepTableAfterFirstDetection && hasDetectedTable)
+        {
+            return;
         }
 
         spawnedTable.transform.SetPositionAndRotation(
             trackedImage.transform.position,
             trackedImage.transform.rotation
         );
+    }
 
-        spawnedTable.SetActive(true);
+    private void HandleRemovedImage(ARTrackedImage trackedImage)
+    {
+        if (keepTableAfterFirstDetection)
+        {
+            return;
+        }
+
+        if (spawnedTable != null)
+        {
+            spawnedTable.SetActive(false);
+        }
     }
 }
