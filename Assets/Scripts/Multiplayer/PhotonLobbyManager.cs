@@ -234,7 +234,7 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         startGameButton.interactable = false;
         backButton.interactable = false;
 
-        PhotonNetwork.LoadLevel("GameScene");
+        PhotonNetwork.LoadLevel("ARMultiplayerGameScene");
     }
 
     private bool AllPlayersReady()
