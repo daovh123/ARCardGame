@@ -8,6 +8,9 @@ using Photon.Pun;
 
 public class GameUIManager : MonoBehaviour
 {
+    [Header("AR")]
+    public bool arOverlayMode;
+
     public GameManager gameManager;
 
     public TMP_Text topCardText;
@@ -211,7 +214,10 @@ public class GameUIManager : MonoBehaviour
 
         LoadCardDatabase();
         ConfigureCanvas(canvas);
-        BuildBackground(canvas.transform);
+        if (!arOverlayMode)
+        {
+            BuildBackground(canvas.transform);
+        }
         BuildTopHud(canvas.transform);
         BuildTopCardDisplay(canvas.transform);
         BuildSeatPanels(canvas.transform);

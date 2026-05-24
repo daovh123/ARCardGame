@@ -584,7 +584,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0}
   m_AnchorMax: {x: 0.5, y: 0}
   m_AnchoredPosition: {x: 0, y: 150}
-  m_SizeDelta: {x: 0, y: 260}
+  m_SizeDelta: {x: 10, y: 260}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &411185489
 MonoBehaviour:
@@ -1863,7 +1863,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &1164337529
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2272,6 +2272,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ebb1f3d7f1052c7498bff5485d2959dd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::GameUIManager
+  arOverlayMode: 1
   gameManager: {fileID: 40237772}
   topCardText: {fileID: 262039771}
   currentTurnText: {fileID: 521750374}
