@@ -217,7 +217,7 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
             return;
         }
 
-        if (PhotonNetwork.CurrentRoom.PlayerCount < 2)
+        if (PhotonNetwork.CurrentRoom.PlayerCount < 1)
         {
             RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
             messageText.text = "Need at least 2 players.";
@@ -238,7 +238,7 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         startGameButton.interactable = false;
         backButton.interactable = false;
 
-        PhotonNetwork.LoadLevel("GameScene");
+        PhotonNetwork.LoadLevel("ARMultiplayerGameScene");
     }
 
     private bool AllPlayersReady()
