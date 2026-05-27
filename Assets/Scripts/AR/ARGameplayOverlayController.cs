@@ -1,3 +1,5 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class ARGameplayOverlayController : MonoBehaviour
@@ -11,15 +13,15 @@ public class ARGameplayOverlayController : MonoBehaviour
     [SerializeField] private TienLenARGameEventBridge tienLenBridge;
 
     private ARTableController currentTableController;
+    private RectTransform gameplayRoot;
+    private CanvasGroup gameplayRootGroup;
+    private bool tableReady;
 
     private void Awake()
     {
+        PrepareGameplayRoot();
         SetGameplayVisible(false);
-
-        if (scanMarkerPanel != null)
-        {
-            scanMarkerPanel.SetActive(true);
-        }
+        SetScanMarkerVisible(true);
 
         if (unoBridge != null)
         {
@@ -29,6 +31,21 @@ public class ARGameplayOverlayController : MonoBehaviour
         if (tienLenBridge != null)
         {
             tienLenBridge.enabled = false;
+        }
+    }
+
+    private IEnumerator Start()
+    {
+        // GameUIManager creates part of the HUD in Start, so regroup once more
+        // after the first frame before keeping gameplay hidden during scanning.
+        yield return null;
+
+        PrepareGameplayRoot();
+
+        if (!tableReady)
+        {
+            SetGameplayVisible(false);
+            SetScanMarkerVisible(true);
         }
     }
 
@@ -45,12 +62,10 @@ public class ARGameplayOverlayController : MonoBehaviour
     private void HandleTableControllerReady(ARTableController controller)
     {
         currentTableController = controller;
+        tableReady = true;
 
-        if (scanMarkerPanel != null)
-        {
-            scanMarkerPanel.SetActive(false);
-        }
-
+        PrepareGameplayRoot();
+        SetScanMarkerVisible(false);
         SetGameplayVisible(true);
         ConnectBridges(controller);
         InitializeTableState(controller);
@@ -92,13 +107,73 @@ public class ARGameplayOverlayController : MonoBehaviour
 
     private void SetGameplayVisible(bool visible)
     {
-        if (gameplayCanvasGroup == null)
+        CanvasGroup targetGroup = gameplayRootGroup != null ? gameplayRootGroup : gameplayCanvasGroup;
+        if (targetGroup == null)
         {
             return;
         }
 
-        gameplayCanvasGroup.alpha = visible ? 1f : 0f;
-        gameplayCanvasGroup.interactable = visible;
-        gameplayCanvasGroup.blocksRaycasts = visible;
+        targetGroup.alpha = visible ? 1f : 0f;
+        targetGroup.interactable = visible;
+        targetGroup.blocksRaycasts = visible;
+    }
+
+    private void SetScanMarkerVisible(bool visible)
+    {
+        if (scanMarkerPanel != null)
+        {
+            scanMarkerPanel.SetActive(visible);
+            scanMarkerPanel.transform.SetAsLastSibling();
+        }
+    }
+
+    private void PrepareGameplayRoot()
+    {
+        if (gameplayCanvasGroup == null || scanMarkerPanel == null)
+        {
+            return;
+        }
+
+        Transform canvasTransform = gameplayCanvasGroup.transform;
+        if (!scanMarkerPanel.transform.IsChildOf(canvasTransform))
+        {
+            return;
+        }
+
+        if (gameplayRoot == null)
+        {
+            GameObject rootObject = new GameObject("Runtime_ARGameplayRoot", typeof(RectTransform), typeof(CanvasGroup));
+            gameplayRoot = rootObject.GetComponent<RectTransform>();
+            gameplayRoot.SetParent(canvasTransform, false);
+            gameplayRoot.anchorMin = Vector2.zero;
+            gameplayRoot.anchorMax = Vector2.one;
+            gameplayRoot.offsetMin = Vector2.zero;
+            gameplayRoot.offsetMax = Vector2.zero;
+            gameplayRoot.pivot = new Vector2(0.5f, 0.5f);
+            gameplayRoot.SetAsFirstSibling();
+
+            gameplayRootGroup = rootObject.GetComponent<CanvasGroup>();
+        }
+
+        gameplayCanvasGroup.alpha = 1f;
+        gameplayCanvasGroup.interactable = true;
+        gameplayCanvasGroup.blocksRaycasts = true;
+
+        List<Transform> childrenToMove = new List<Transform>();
+        for (int i = 0; i < canvasTransform.childCount; i++)
+        {
+            Transform child = canvasTransform.GetChild(i);
+            if (child == gameplayRoot || child == scanMarkerPanel.transform)
+            {
+                continue;
+            }
+
+            childrenToMove.Add(child);
+        }
+
+        foreach (Transform child in childrenToMove)
+        {
+            child.SetParent(gameplayRoot, false);
+        }
     }
 }
