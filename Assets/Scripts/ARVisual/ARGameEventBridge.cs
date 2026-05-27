@@ -30,7 +30,7 @@ public class ARGameEventBridge : MonoBehaviour
     {
         if (tableController != null)
         {
-            tableController.ShowPlayedCard(card, playerIndex);
+            tableController.ShowPlayedUnoCard(card, playerIndex);
         }
     }
 
@@ -38,7 +38,7 @@ public class ARGameEventBridge : MonoBehaviour
     {
         if (tableController != null)
         {
-            tableController.ShowDrawEffect(playerIndex);
+            tableController.ShowDrawEffect(playerIndex, 1);
         }
     }
 

@@ -6,6 +6,7 @@ using UnityEngine.XR.ARSubsystems;
 public class ARImageTableTracker : MonoBehaviour
 {
     public static event Action<GameObject> OnTableSpawned;
+    public static event Action<ARTableController> OnTableControllerReady;
 
     [Header("AR Tracking")]
     [SerializeField] private ARTrackedImageManager trackedImageManager;
@@ -42,6 +43,7 @@ public class ARImageTableTracker : MonoBehaviour
     [SerializeField] private float recenterAngleThreshold = 10f;
 
     private GameObject spawnedTable;
+    private ARTableController tableController;
     private bool hasDetectedTable;
     private bool hasNotifiedTableSpawned;
     private bool isTablePoseLocked;
@@ -58,6 +60,11 @@ public class ARImageTableTracker : MonoBehaviour
     private float recenterElapsed;
     private Pose recenterStartPose;
     private Pose recenterTargetPose;
+
+    public ARTableController TableController
+    {
+        get { return tableController; }
+    }
 
     private void Awake()
     {
@@ -136,7 +143,6 @@ public class ARImageTableTracker : MonoBehaviour
             {
                 spawnedTable.SetActive(false);
             }
-
             return;
         }
 
@@ -160,6 +166,12 @@ public class ARImageTableTracker : MonoBehaviour
         {
             hasNotifiedTableSpawned = true;
             OnTableSpawned?.Invoke(spawnedTable);
+
+            if (tableController != null)
+            {
+                tableController.Initialize();
+                OnTableControllerReady?.Invoke(tableController);
+            }
         }
     }
 
@@ -189,6 +201,7 @@ public class ARImageTableTracker : MonoBehaviour
         isTablePoseLocked = false;
         CaptureCameraPoseBaseline();
 
+        tableController = spawnedTable.GetComponentInChildren<ARTableController>();
         Debug.Log("[ARImageTableTracker] Spawned AR table on marker: " + trackedImage.referenceImage.name);
     }
 
