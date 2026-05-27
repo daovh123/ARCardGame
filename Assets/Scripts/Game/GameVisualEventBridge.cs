@@ -44,4 +44,4 @@ public class GameVisualEventBridge : MonoBehaviour
     {
         Debug.Log("[VISUAL BRIDGE] Game Over: " + winnerName);
     }
-}
+}   

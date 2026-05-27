@@ -6,6 +6,12 @@ public class ARGameplayOverlayController : MonoBehaviour
     [SerializeField] private GameObject scanMarkerPanel;
     [SerializeField] private GameManager gameManager;
 
+    [Header("AR Event Bridges")]
+    [SerializeField] private UnoARGameEventBridge unoBridge;
+    [SerializeField] private TienLenARGameEventBridge tienLenBridge;
+
+    private ARTableController currentTableController;
+
     private void Awake()
     {
         SetGameplayVisible(false);
@@ -14,36 +20,72 @@ public class ARGameplayOverlayController : MonoBehaviour
         {
             scanMarkerPanel.SetActive(true);
         }
+
+        if (unoBridge != null)
+        {
+            unoBridge.enabled = false;
+        }
+
+        if (tienLenBridge != null)
+        {
+            tienLenBridge.enabled = false;
+        }
     }
 
     private void OnEnable()
     {
-        ARImageTableTracker.OnTableSpawned += HandleTableSpawned;
+        ARImageTableTracker.OnTableControllerReady += HandleTableControllerReady;
     }
 
     private void OnDisable()
     {
-        ARImageTableTracker.OnTableSpawned -= HandleTableSpawned;
+        ARImageTableTracker.OnTableControllerReady -= HandleTableControllerReady;
     }
 
-    private void HandleTableSpawned(GameObject tableObject)
+    private void HandleTableControllerReady(ARTableController controller)
     {
+        currentTableController = controller;
+
         if (scanMarkerPanel != null)
         {
             scanMarkerPanel.SetActive(false);
         }
 
         SetGameplayVisible(true);
+        ConnectBridges(controller);
+        InitializeTableState(controller);
+    }
 
-        ARTableController table = tableObject.GetComponent<ARTableController>();
-        if (table != null && gameManager != null)
+    private void ConnectBridges(ARTableController controller)
+    {
+        if (unoBridge != null)
         {
-            table.ShowTurn(gameManager.GetCurrentPlayerIndex());
+            unoBridge.arTableController = controller;
+            unoBridge.enabled = GameModeSelection.CurrentMode == GameMode.Uno;
+        }
+
+        if (tienLenBridge != null)
+        {
+            tienLenBridge.arTableController = controller;
+            tienLenBridge.enabled = GameModeSelection.CurrentMode == GameMode.TienLenMienNam;
+        }
+    }
+
+    private void InitializeTableState(ARTableController controller)
+    {
+        if (controller == null)
+        {
+            return;
+        }
+
+        if (GameModeSelection.CurrentMode == GameMode.Uno && gameManager != null)
+        {
+            controller.ShowTurn(gameManager.GetCurrentPlayerIndex());
 
             CardData topCard = gameManager.GetTopDiscardCard();
             if (topCard != null)
             {
-                table.ShowTopDiscardCard(topCard);
+                controller.ShowTopDiscardCard(topCard);
             }
         }
     }

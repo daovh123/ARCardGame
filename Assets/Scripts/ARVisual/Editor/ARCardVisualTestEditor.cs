@@ -139,13 +139,19 @@ public static class ARCardVisualTestEditor
             AssetDatabase.CreateAsset(deckMat, deckMatPath);
         }
         drawPileVisual.GetComponent<Renderer>().sharedMaterial = deckMat;
-        controller.drawPile = drawPileObj.transform;
+        controller.drawPilePoint = drawPileObj.transform;
 
         // 5. ARDiscardPile
         GameObject discardPileObj = new GameObject("ARDiscardPile");
         discardPileObj.transform.SetParent(tableRoot.transform);
         discardPileObj.transform.localPosition = Vector3.zero;
-        controller.discardPile = discardPileObj.transform;
+        controller.discardPilePoint = discardPileObj.transform;
+
+        // 5b. CenterPlayPoint (for Tien Len)
+        GameObject centerPlayObj = new GameObject("CenterPlayPoint");
+        centerPlayObj.transform.SetParent(tableRoot.transform);
+        centerPlayObj.transform.localPosition = new Vector3(0f, 0.005f, 0f);
+        controller.centerPlayPoint = centerPlayObj.transform;
 
         // 6. PlayerSlots
         GameObject playerSlotsRoot = new GameObject("PlayerSlots");
@@ -219,12 +225,18 @@ public static class ARCardVisualTestEditor
         effectRootObj.transform.localPosition = new Vector3(0f, 0.05f, 0f);
         controller.effectRoot = effectRootObj.transform;
 
+        // 9b. VictoryEffectPoint
+        GameObject victoryObj = new GameObject("VictoryEffectPoint");
+        victoryObj.transform.SetParent(tableRoot.transform);
+        victoryObj.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+        controller.victoryEffectPoint = victoryObj.transform;
+
         // 9. Attach Card Prefab (if existing)
         string cardPrefabPath = targetFolder + "/ARCardPrefab.prefab";
         GameObject cardPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(cardPrefabPath);
         if (cardPrefab != null)
         {
-            controller.cardPrefab = cardPrefab;
+            controller.unoCardPrefab = cardPrefab;
         }
         else
         {
@@ -232,7 +244,7 @@ public static class ARCardVisualTestEditor
             GameObject fallbackPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(fallbackPath);
             if (fallbackPrefab != null)
             {
-                controller.cardPrefab = fallbackPrefab;
+                controller.unoCardPrefab = fallbackPrefab;
             }
         }
 

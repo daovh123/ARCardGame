@@ -46,6 +46,7 @@ public class TienLenGameManager : MonoBehaviour
             players[currentPlayerIndex].playerName + " leads first. Any valid set may be played.",
             null,
             0);
+        TienLenGameEvents.TurnChanged(currentPlayerIndex);
 
         if (TryApplyInstantWin())
         {
@@ -91,6 +92,14 @@ public class TienLenGameManager : MonoBehaviour
 
         lastMessage = player.playerName + " played " + challenger.GetLabel() + ": " + FormatCards(challenger.cards) + ".";
         RecordPlayFeedback(player.playerIndex, challenger, previousCombination);
+        TienLenGameEvents.CardsPlayed(challenger.cards, player.playerIndex);
+
+        bool isBomb = IsBombFeedback(challenger, previousCombination);
+        if (isBomb)
+        {
+            string bombLabel = previousCombination != null && previousCombination.ContainsTwo ? "CHOP" : "BOMB";
+            TienLenGameEvents.SpecialEffect(bombLabel, player.playerIndex);
+        }
 
         if (player.handCards.Count == 0)
         {
@@ -128,6 +137,7 @@ public class TienLenGameManager : MonoBehaviour
         passed[currentPlayerIndex] = true;
         lastMessage = players[currentPlayerIndex].playerName + " passed.";
         RecordFeedback(TienLenFeedbackKind.Pass, actorIndex, FindNextEligiblePlayer(actorIndex), "PASS", lastMessage, null, 0);
+        TienLenGameEvents.PlayerPassed(actorIndex);
         RuntimeSfx.Play(RuntimeSfxType.Pass, 0.68f);
         AdvanceTurnAfterAction();
         AttachCurrentPlayerToLatestFeedback();
@@ -303,6 +313,8 @@ public class TienLenGameManager : MonoBehaviour
             isGameOver = true;
             lastMessage = player.playerName + " wins instantly with " + reason + ".";
             RecordFeedback(TienLenFeedbackKind.InstantWin, player.playerIndex, -1, "INSTANT WIN", lastMessage, player.handCards, player.finishRank);
+            TienLenGameEvents.SpecialEffect("INSTANT WIN", player.playerIndex);
+            TienLenGameEvents.GameOver(player.playerName);
             RuntimeSfx.Play(RuntimeSfxType.Win, 0.90f);
             return true;
         }
@@ -455,6 +467,7 @@ public class TienLenGameManager : MonoBehaviour
             isGameOver = true;
             lastMessage += " Round complete.";
             RecordFeedback(TienLenFeedbackKind.RoundComplete, player.playerIndex, -1, "ROUND COMPLETE", lastMessage, null, player.finishRank);
+            TienLenGameEvents.GameOver(player.playerName);
         }
     }
 
@@ -472,12 +485,15 @@ public class TienLenGameManager : MonoBehaviour
             currentPlayerIndex = leader;
             lastMessage += " " + players[currentPlayerIndex].playerName + " leads next.";
             RecordFeedback(TienLenFeedbackKind.NewTrick, leader, leader, "NEW TRICK", players[currentPlayerIndex].playerName + " leads next.", null, 0);
+            TienLenGameEvents.TurnChanged(currentPlayerIndex);
             return;
         }
 
         currentPlayerIndex = tableOwnerFinished
             ? FindNextEligiblePlayerFromOwner()
             : FindNextEligiblePlayer(currentPlayerIndex);
+
+        TienLenGameEvents.TurnChanged(currentPlayerIndex);
     }
 
     private void ClearTrick()
