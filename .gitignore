@@ -42,5 +42,7 @@ Thumbs.db
 # Unity cụ thể
 .utmp/
 
-task.txt
-workflow.txt
+Packages/manifest.json
+Packages/packages-lock.json
+ProjectSettings/EditorBuildSettings.asset
+ProjectSettings/ProjectVersion.txt

@@ -170,7 +170,7 @@ public class GameUIManager : MonoBehaviour
 
             bool canPlayCard = isLocalTurn && !isGameOver && gameManager.CanPlayHandCard(i);
             cardUI.SetPlayable(canPlayCard);
-            ConfigureHandCardObject(cardObject, handCards.Count, canPlayCard);
+            ConfigureHandCardObject(cardObject, i, handCards.Count, canPlayCard);
 
             Button cardButton = cardObject.GetComponent<Button>();
 
@@ -217,9 +217,9 @@ public class GameUIManager : MonoBehaviour
         if (!arOverlayMode)
         {
             BuildBackground(canvas.transform);
+            BuildTopCardDisplay(canvas.transform);
         }
         BuildTopHud(canvas.transform);
-        BuildTopCardDisplay(canvas.transform);
         BuildSeatPanels(canvas.transform);
         BuildActionRail(canvas.transform);
         StyleExistingLayout();
@@ -261,6 +261,13 @@ public class GameUIManager : MonoBehaviour
 
     private void ConfigureCanvas(Canvas canvas)
     {
+        if (arOverlayMode)
+        {
+            canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            canvas.worldCamera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
+            canvas.planeDistance = 6f;
+        }
+
         CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
         if (scaler != null)
         {
@@ -965,6 +972,13 @@ public class GameUIManager : MonoBehaviour
             return;
         }
 
+        if (arOverlayMode)
+        {
+            layout.enabled = false;
+            return;
+        }
+
+        layout.enabled = true;
         if (handCount > 13)
         {
             layout.spacing = 4f;
@@ -982,7 +996,7 @@ public class GameUIManager : MonoBehaviour
         }
     }
 
-    private void ConfigureHandCardObject(GameObject cardObject, int handCount, bool playable)
+    private void ConfigureHandCardObject(GameObject cardObject, int cardIndex, int handCount, bool playable)
     {
         if (cardObject == null)
         {
@@ -1008,8 +1022,46 @@ public class GameUIManager : MonoBehaviour
 
         if (rect != null)
         {
-            rect.sizeDelta = new Vector2(width, height);
-            rect.localScale = playable ? Vector3.one : Vector3.one * 0.96f;
+            if (arOverlayMode)
+            {
+                rect.anchorMin = new Vector2(0.5f, 0.5f);
+                rect.anchorMax = new Vector2(0.5f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+
+                float centerIndex = (handCount - 1) / 2.0f;
+                float offsetFromCenter = cardIndex - centerIndex;
+
+                float cardSpacing = 52f;
+                if (handCount > 12)
+                {
+                    cardSpacing = Mathf.Max(24f, 480f / handCount);
+                }
+                else if (handCount > 6)
+                {
+                    cardSpacing = Mathf.Max(32f, 320f / handCount);
+                }
+
+                float xPos = offsetFromCenter * cardSpacing;
+                float yPos = -Mathf.Abs(offsetFromCenter) * 3.2f + (playable ? 10f : 0f);
+                float zPos = -Mathf.Abs(offsetFromCenter) * 5f;
+
+                rect.localPosition = new Vector3(xPos, yPos, zPos);
+
+                float zRot = -offsetFromCenter * 3.2f;
+                float yRot = offsetFromCenter * 4.8f;
+                float xRot = 15f;
+
+                rect.localRotation = Quaternion.Euler(xRot, yRot, zRot);
+                rect.localScale = playable ? Vector3.one : Vector3.one * 0.94f;
+                rect.sizeDelta = new Vector2(104f, 154f);
+            }
+            else
+            {
+                rect.localPosition = Vector3.zero;
+                rect.localRotation = Quaternion.identity;
+                rect.localScale = playable ? Vector3.one : Vector3.one * 0.96f;
+                rect.sizeDelta = new Vector2(width, height);
+            }
         }
 
         Shadow shadow = cardObject.GetComponent<Shadow>();

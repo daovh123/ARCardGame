@@ -267,12 +267,12 @@ public class ARTableController : MonoBehaviour
         Vector3 startPos = startSlot.position;
         // Stack cards slightly to avoid Z-fighting/overlapping perfectly
         float yStackOffset = activeDiscardedCards.Count * 0.001f;
-        Vector3 endPos = targetPile.position + Vector3.up * yStackOffset;
+        Vector3 endPos = targetPile.position + targetPile.up * yStackOffset;
 
         Quaternion startRot = startSlot.rotation;
-        // The card should lie flat on the table (euler rotation around Y only)
+        // The card should lie flat on the table (euler rotation around Y only, relative to the pile's rotation)
         float randomYaw = Random.Range(-15f, 15f);
-        Quaternion endRot = Quaternion.Euler(0f, randomYaw, 0f);
+        Quaternion endRot = targetPile.rotation * Quaternion.Euler(0f, randomYaw, 0f);
 
         float elapsed = 0f;
         while (elapsed < playDuration)
