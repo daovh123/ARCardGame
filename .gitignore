@@ -1,46 +1,60 @@
-/[Ll]ibrary/
-/[Tt]emp/
-/[Oo]bj/
-/[Bb]uild/
-/[Bb]uilds/
-/[Ll]ogs/
-/[Uu]ser[Ss]ettings/
-/[Mm]emoryCaptures/
+# ==========================================
+# DEPENDENCIES (Thư mục cài đặt thư viện)
+# ==========================================
+node_modules/
+jspm_packages/
+web_modules/
 
-# Loại bỏ các file build của Android/iOS
-*.apk
-*.unitypackage
-*.obb
-*_BackUpThisFolder_ButDontShipItWithYourGame/
-*_BurstDebugInformation_DoNotShip/
+# ==========================================
+# PRODUCTION / BUILD (Thư mục sản phẩm sau khi build)
+# ==========================================
+# React.js build output
+build/
+dist/
+out/
+.next/
 
-# Loại bỏ các file project của IDE (Visual Studio, VS Code, Rider)
+# Node.js build output (nếu dùng TypeScript hoặc Babel)
+lib/
+lib-cov/
+deps/
+
+# ==========================================
+# ENV / SECRETS (Thông tin bảo mật - QUAN TRỌNG)
+# ==========================================
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.env.*
+!.env.example # Giữ lại file example để người khác biết cần cấu hình gì
+
+# ==========================================
+# LOGS (File ghi nhật ký lỗi)
+# ==========================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ==========================================
+# IDE / EDITORS (Cấu hình riêng của trình soạn thảo)
+# ==========================================
 .vscode/
-.gradle/
-/[[Aa]ssembly-CSharp-Editor.csproj
-/[Aa]ssembly-CSharp.csproj
-/*.sln
-/*.slnx
-/*.userprefs
-/*.csproj
-/*.unityproj
-/*.suo
-/*.tmp
-/*.user
-/*.pidb
-/*.booproj
-/*.svd
-/*.pdb
-/*.opendb
-/*.IDB
-/DerivedData
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
 
-# Loại bỏ file tạm của hệ điều hành
+# ==========================================
+# SYSTEM FILES (File rác của hệ điều hành)
+# ==========================================
 .DS_Store
 Thumbs.db
-
-# Unity cụ thể
-.utmp/
-
-task.txt
-workflow.txt
