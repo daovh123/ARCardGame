@@ -22,4 +22,10 @@ public class GameStateData
     public bool isGameOver;
     public string lastMessage;
     public string winnerName;
+
+    public int visualEventSequence;
+    public string visualEventType;
+    public int visualEventPlayerIndex;
+    public CardData visualEventCard;
+    public string visualEventWinner;
 }

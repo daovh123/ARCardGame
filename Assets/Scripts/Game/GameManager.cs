@@ -27,6 +27,12 @@ public class GameManager : MonoBehaviourPunCallbacks
     private bool isGameOver = false;
     private string lastMessage = "";
     private string winnerName = "";
+    private int visualEventSequence;
+    private string visualEventType = "";
+    private int visualEventPlayerIndex = -1;
+    private CardData visualEventCard;
+    private string visualEventWinner = "";
+    private int lastAppliedVisualEventSequence;
 
     private void Awake()
     {
@@ -77,6 +83,10 @@ public class GameManager : MonoBehaviourPunCallbacks
         currentColor = CardColor.Wild;
         lastMessage = "Match color, number, symbol, or play a Wild.";
         winnerName = "";
+        visualEventType = "";
+        visualEventPlayerIndex = -1;
+        visualEventCard = null;
+        visualEventWinner = "";
 
         if (PhotonNetwork.InRoom)
         {
@@ -107,6 +117,7 @@ public class GameManager : MonoBehaviourPunCallbacks
 
         DealCards();
         PrepareInitialDiscard();
+        ClearVisualEventPayload();
 
         if (topDiscardCard != null)
         {
@@ -240,7 +251,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             if (drawnCard != null)
             {
                 player.handCards.Add(drawnCard);
-                GameEvents.CardDrawn(player.playerIndex);
+                NotifyCardDrawn(player.playerIndex);
 
                 if (TryApplyCardLimitLoss(player))
                 {
@@ -312,7 +323,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         }
 
         Debug.Log(lastMessage);
-        GameEvents.CardPlayed(selectedCard, actingPlayerIndex);
+        NotifyCardPlayed(selectedCard, actingPlayerIndex);
 
         if (shouldHaveCalledUno && currentPlayer.handCards.Count == 1)
         {
@@ -414,7 +425,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         if (card != null)
         {
             currentPlayer.handCards.Add(card);
-            GameEvents.CardDrawn(currentPlayerIndex);
+            NotifyCardDrawn(currentPlayerIndex);
             hasDrawnThisTurn = false;
             drawnCardIndex = -1;
 
@@ -462,7 +473,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         {
             currentPlayer.handCards.Add(card);
             pendingDrawPenalty = Mathf.Max(0, pendingDrawPenalty - 1);
-            GameEvents.CardDrawn(currentPlayerIndex);
+            NotifyCardDrawn(currentPlayerIndex);
 
             if (TryApplyCardLimitLoss(currentPlayer))
             {
@@ -759,7 +770,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         winnerName = GetFirstPlaceName();
         AppendLastMessage("Round complete.");
         Debug.Log(lastMessage);
-        GameEvents.GameOver(string.IsNullOrEmpty(winnerName) ? lastMessage : winnerName);
+        NotifyGameOver(string.IsNullOrEmpty(winnerName) ? lastMessage : winnerName);
         return true;
     }
 
@@ -1141,6 +1152,82 @@ public class GameManager : MonoBehaviourPunCallbacks
         return topDiscardCard.GetDisplayName() + " / " + currentColor;
     }
 
+
+
+    private void ClearVisualEventPayload()
+    {
+        visualEventType = "";
+        visualEventPlayerIndex = -1;
+        visualEventCard = null;
+        visualEventWinner = "";
+        lastAppliedVisualEventSequence = visualEventSequence;
+    }
+
+    private void RegisterVisualEvent(string eventType, int playerIndex = -1, CardData card = null, string winner = "")
+    {
+        visualEventSequence++;
+        visualEventType = eventType;
+        visualEventPlayerIndex = playerIndex;
+        visualEventCard = card;
+        visualEventWinner = winner;
+        lastAppliedVisualEventSequence = visualEventSequence;
+    }
+
+    private void NotifyCardPlayed(CardData card, int playerIndex)
+    {
+        RegisterVisualEvent("play", playerIndex, card);
+        GameEvents.CardPlayed(card, playerIndex);
+    }
+
+    private void NotifyCardDrawn(int playerIndex)
+    {
+        RegisterVisualEvent("draw", playerIndex);
+        GameEvents.CardDrawn(playerIndex);
+    }
+
+    private void NotifyGameOver(string winner)
+    {
+        RegisterVisualEvent("gameOver", -1, null, winner);
+        GameEvents.GameOver(winner);
+    }
+
+    private void ReplayNetworkVisualEvent(GameStateData state)
+    {
+        if (state == null)
+        {
+            return;
+        }
+
+        bool hasNewVisualEvent = state.visualEventSequence > 0 && state.visualEventSequence > lastAppliedVisualEventSequence;
+        if (hasNewVisualEvent)
+        {
+            lastAppliedVisualEventSequence = state.visualEventSequence;
+
+            switch (state.visualEventType)
+            {
+                case "play":
+                    if (state.visualEventCard != null && state.visualEventPlayerIndex >= 0)
+                    {
+                        GameEvents.CardPlayed(state.visualEventCard, state.visualEventPlayerIndex);
+                    }
+                    break;
+
+                case "draw":
+                    if (state.visualEventPlayerIndex >= 0)
+                    {
+                        GameEvents.CardDrawn(state.visualEventPlayerIndex);
+                    }
+                    break;
+
+                case "gameOver":
+                    GameEvents.GameOver(state.visualEventWinner);
+                    break;
+            }
+        }
+
+        GameEvents.TurnChanged(currentPlayerIndex);
+    }
+
     private GameStateData CreateStateData()
     {
         GameStateData state = new GameStateData();
@@ -1160,6 +1247,11 @@ public class GameManager : MonoBehaviourPunCallbacks
         state.isGameOver = isGameOver;
         state.lastMessage = lastMessage;
         state.winnerName = winnerName;
+        state.visualEventSequence = visualEventSequence;
+        state.visualEventType = visualEventType;
+        state.visualEventPlayerIndex = visualEventPlayerIndex;
+        state.visualEventCard = visualEventCard;
+        state.visualEventWinner = visualEventWinner;
 
         return state;
     }
@@ -1186,6 +1278,11 @@ public class GameManager : MonoBehaviourPunCallbacks
         isGameOver = state.isGameOver;
         lastMessage = state.lastMessage;
         winnerName = state.winnerName;
+        visualEventSequence = state.visualEventSequence;
+        visualEventType = state.visualEventType;
+        visualEventPlayerIndex = state.visualEventPlayerIndex;
+        visualEventCard = state.visualEventCard;
+        visualEventWinner = state.visualEventWinner;
     }
 
     private void PublishGameState()
@@ -1216,6 +1313,8 @@ public class GameManager : MonoBehaviourPunCallbacks
             string json = PhotonNetwork.CurrentRoom.CustomProperties["gameState"].ToString();
             GameStateData state = JsonUtility.FromJson<GameStateData>(json);
             ApplyStateData(state);
+            lastAppliedVisualEventSequence = state.visualEventSequence;
+            GameEvents.TurnChanged(currentPlayerIndex);
         }
     }
 
@@ -1226,6 +1325,7 @@ public class GameManager : MonoBehaviourPunCallbacks
             string json = propertiesThatChanged["gameState"].ToString();
             GameStateData state = JsonUtility.FromJson<GameStateData>(json);
             ApplyStateData(state);
+            ReplayNetworkVisualEvent(state);
 
             GameUIManager uiManager = FindAnyObjectByType<GameUIManager>();
 

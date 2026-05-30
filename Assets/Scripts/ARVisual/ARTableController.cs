@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Photon.Pun;
 using UnityEngine;
 
 public class ARTableController : MonoBehaviour
@@ -147,22 +148,82 @@ public class ARTableController : MonoBehaviour
         }
     }
 
-    public void ShowTurn(int playerIndex)
+
+    private int GetVisualSlotIndex(int playerIndex)
     {
         if (playerIndex < 0 || playerIndex >= playerSlots.Length)
+        {
+            return -1;
+        }
+
+        int playerCount = PhotonNetwork.InRoom ? PhotonNetwork.PlayerList.Length : playerSlots.Length;
+        playerCount = Mathf.Clamp(playerCount, 1, playerSlots.Length);
+
+        int localIndex = GetLocalPlayerIndex();
+        if (localIndex < 0 || localIndex >= playerCount)
+        {
+            return Mathf.Clamp(playerIndex, 0, playerSlots.Length - 1);
+        }
+
+        int delta = playerIndex - localIndex;
+        int half = playerCount / 2;
+
+        if (delta > half)
+        {
+            delta -= playerCount;
+        }
+        else if (delta < -half)
+        {
+            delta += playerCount;
+        }
+
+        if (delta == 0)
+        {
+            return 0;
+        }
+
+        if (delta > 0)
+        {
+            return delta == 1 ? 3 : 2;
+        }
+
+        return delta == -1 ? 1 : 2;
+    }
+
+    private int GetLocalPlayerIndex()
+    {
+        if (!PhotonNetwork.InRoom)
+        {
+            return 0;
+        }
+
+        for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+        {
+            if (PhotonNetwork.PlayerList[i] == PhotonNetwork.LocalPlayer)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    public void ShowTurn(int playerIndex)
+    {
+        int visualSlotIndex = GetVisualSlotIndex(playerIndex);
+        if (visualSlotIndex < 0 || visualSlotIndex >= playerSlots.Length)
         {
             Debug.LogWarning($"[ARTableController] ShowTurn called with invalid player index: {playerIndex}");
             return;
         }
 
-        activePlayerIndex = playerIndex;
+        activePlayerIndex = visualSlotIndex;
 
         if (turnIndicator != null)
         {
             if (!turnIndicator.gameObject.activeSelf)
             {
-                // Position it instantly at the start if it was inactive
-                Transform slot = playerSlots[playerIndex];
+                Transform slot = playerSlots[visualSlotIndex];
                 if (slot != null)
                 {
                     turnIndicator.position = slot.position + Vector3.up * turnIndicatorHeightOffset;
@@ -178,13 +239,14 @@ public class ARTableController : MonoBehaviour
     /// </summary>
     public void ShowPlayedCard(CardData card, int playerIndex)
     {
-        if (playerIndex < 0 || playerIndex >= playerSlots.Length)
+        int visualSlotIndex = GetVisualSlotIndex(playerIndex);
+        if (visualSlotIndex < 0 || visualSlotIndex >= playerSlots.Length)
         {
             Debug.LogWarning($"[ARTableController] ShowPlayedCard: Invalid player index: {playerIndex}");
             return;
         }
 
-        Transform spawnSlot = playerSlots[playerIndex];
+        Transform spawnSlot = playerSlots[visualSlotIndex];
         if (spawnSlot == null || discardPile == null || cardPrefab == null)
         {
             Debug.LogError("[ARTableController] ShowPlayedCard components/references missing.");
@@ -199,13 +261,14 @@ public class ARTableController : MonoBehaviour
     /// </summary>
     public void ShowDrawEffect(int playerIndex)
     {
-        if (playerIndex < 0 || playerIndex >= playerSlots.Length)
+        int visualSlotIndex = GetVisualSlotIndex(playerIndex);
+        if (visualSlotIndex < 0 || visualSlotIndex >= playerSlots.Length)
         {
             Debug.LogWarning($"[ARTableController] ShowDrawEffect: Invalid player index: {playerIndex}");
             return;
         }
 
-        Transform targetSlot = playerSlots[playerIndex];
+        Transform targetSlot = playerSlots[visualSlotIndex];
         if (targetSlot == null || drawPile == null || cardPrefab == null)
         {
             Debug.LogError("[ARTableController] ShowDrawEffect components/references missing.");

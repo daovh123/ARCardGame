@@ -1669,18 +1669,24 @@ public class GameUIManager : MonoBehaviour
 
         for (int i = 0; i < seatPanels.Length; i++)
         {
-            bool hasPlayer = i < players.Count;
-            seatPanels[i].gameObject.SetActive(hasPlayer);
+            seatPanels[i].gameObject.SetActive(false);
+        }
 
-            if (!hasPlayer)
+        for (int playerIndex = 0; playerIndex < players.Count; playerIndex++)
+        {
+            int visualSeatIndex = GetVisualSeatIndex(playerIndex, players.Count);
+            if (visualSeatIndex < 0 || visualSeatIndex >= seatPanels.Length)
             {
                 continue;
             }
 
-            PlayerData player = players[i];
+            PlayerData player = players[playerIndex];
             bool isActivePlayer = player.IsActive;
-            bool isCurrent = isActivePlayer && i == currentIndex;
-            Image panelImage = seatPanels[i].GetComponent<Image>();
+            bool isCurrent = isActivePlayer && playerIndex == currentIndex;
+
+            seatPanels[visualSeatIndex].gameObject.SetActive(true);
+
+            Image panelImage = seatPanels[visualSeatIndex].GetComponent<Image>();
             panelImage.sprite = isCurrent
                 ? GetRoundedRectSprite("seat_panel_active", 256, 96, 20, new Color(0.96f, 0.61f, 0.10f, 0.96f), new Color(1f, 0.90f, 0.34f, 0.92f), 4)
                 : GetRoundedRectSprite(
@@ -1693,17 +1699,56 @@ public class GameUIManager : MonoBehaviour
                     2);
             panelImage.color = Color.white;
 
-            seatNameTexts[i].text = player.playerName;
-            seatNameTexts[i].color = isCurrent ? Color.black : isActivePlayer ? Color.white : new Color(0.78f, 0.82f, 0.86f, 0.86f);
-            seatCountTexts[i].text = GetSeatStatusText(player);
-            seatCountTexts[i].color = isCurrent ? Color.black : isActivePlayer ? new Color(0.78f, 0.96f, 1f, 0.90f) : new Color(0.98f, 0.82f, 0.40f, 0.88f);
-            seatPanels[i].localScale = isCurrent ? Vector3.one * 1.04f : Vector3.one;
+            seatNameTexts[visualSeatIndex].text = player.playerName;
+            seatNameTexts[visualSeatIndex].color = isCurrent ? Color.black : isActivePlayer ? Color.white : new Color(0.78f, 0.82f, 0.86f, 0.86f);
+            seatCountTexts[visualSeatIndex].text = GetSeatStatusText(player);
+            seatCountTexts[visualSeatIndex].color = isCurrent ? Color.black : isActivePlayer ? new Color(0.78f, 0.96f, 1f, 0.90f) : new Color(0.98f, 0.82f, 0.40f, 0.88f);
+            seatPanels[visualSeatIndex].localScale = isCurrent ? Vector3.one * 1.04f : Vector3.one;
 
-            if (seatCardImages[i] != null)
+            if (seatCardImages[visualSeatIndex] != null)
             {
-                seatCardImages[i].color = isActivePlayer ? Color.white : new Color(1f, 1f, 1f, 0.42f);
+                seatCardImages[visualSeatIndex].color = isActivePlayer ? Color.white : new Color(1f, 1f, 1f, 0.42f);
             }
         }
+    }
+
+    private int GetVisualSeatIndex(int playerIndex, int playerCount)
+    {
+        if (playerIndex < 0 || playerIndex >= seatPanels.Length)
+        {
+            return -1;
+        }
+
+        playerCount = Mathf.Clamp(playerCount, 1, seatPanels.Length);
+        int localIndex = PhotonNetwork.InRoom ? gameManager.GetLocalPlayerIndex() : 0;
+        if (localIndex < 0 || localIndex >= playerCount)
+        {
+            return Mathf.Clamp(playerIndex, 0, seatPanels.Length - 1);
+        }
+
+        int delta = playerIndex - localIndex;
+        int half = playerCount / 2;
+
+        if (delta > half)
+        {
+            delta -= playerCount;
+        }
+        else if (delta < -half)
+        {
+            delta += playerCount;
+        }
+
+        if (delta == 0)
+        {
+            return 0;
+        }
+
+        if (delta > 0)
+        {
+            return delta == 1 ? 3 : 2;
+        }
+
+        return delta == -1 ? 1 : 2;
     }
 
     private string GetSeatStatusText(PlayerData player)
