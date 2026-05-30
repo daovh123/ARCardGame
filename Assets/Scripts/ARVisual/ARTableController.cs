@@ -40,6 +40,7 @@ public class ARTableController : MonoBehaviour
 
     private List<GameObject> activeDiscardedCards = new List<GameObject>();
     private readonly List<GameObject> drawPileVisuals = new List<GameObject>();
+    private readonly List<GameObject> activeGameOverEffects = new List<GameObject>();
     private const int MaxDiscardedCards = 8;
     private int discardStackSequence;
 
@@ -264,33 +265,65 @@ public class ARTableController : MonoBehaviour
     /// </summary>
     public void ShowWinner(string winnerName)
     {
+        ClearGameOverEffects();
+
         Transform targetAnchor = effectRoot != null ? effectRoot : transform;
 
-        // Spawn colorful confetti particles
         SpawnVictoryParticles(targetAnchor.position);
 
-        // Instantiate celebration floating text
         GameObject winTextObj = new GameObject("VictoryText");
-        winTextObj.transform.position = targetAnchor.position + Vector3.up * 0.1f;
-        winTextObj.transform.rotation = Quaternion.Euler(30f, 0f, 0f); // Tilted slightly towards camera
-        winTextObj.transform.localScale = Vector3.one * 0.05f;
+        winTextObj.transform.SetParent(transform, true);
+        winTextObj.transform.position = targetAnchor.position + transform.up * 0.12f;
+        winTextObj.transform.localScale = Vector3.one * 0.024f;
+        activeGameOverEffects.Add(winTextObj);
 
         TextMesh textMesh = winTextObj.AddComponent<TextMesh>();
-        textMesh.text = $"Winner: {winnerName}!";
-        textMesh.fontSize = 80;
+        textMesh.text = GetCompactGameOverText(winnerName);
+        textMesh.fontSize = 58;
+        textMesh.characterSize = 0.08f;
         textMesh.anchor = TextAnchor.MiddleCenter;
         textMesh.alignment = TextAlignment.Center;
-        textMesh.color = new Color(1f, 0.85f, 0f); // Premium Gold
+        textMesh.color = new Color(1f, 0.85f, 0f);
 
-        // Add a simple animated floating/pulse effect
         StartCoroutine(AnimateVictoryBillboard(winTextObj));
+    }
+
+    public void ClearGameOverEffects()
+    {
+        for (int i = activeGameOverEffects.Count - 1; i >= 0; i--)
+        {
+            GameObject effect = activeGameOverEffects[i];
+            activeGameOverEffects.RemoveAt(i);
+
+            if (effect != null)
+            {
+                Destroy(effect);
+            }
+        }
+    }
+
+    private string GetCompactGameOverText(string winnerName)
+    {
+        if (string.IsNullOrWhiteSpace(winnerName))
+        {
+            return "ROUND\nCOMPLETE";
+        }
+
+        string compactName = winnerName.Trim();
+        if (compactName.Length > 18)
+        {
+            compactName = compactName.Substring(0, 18) + "...";
+        }
+
+        return "ROUND COMPLETE\n" + compactName;
     }
 
     private void SpawnVictoryParticles(Vector3 position)
     {
         GameObject particlesObj = new GameObject("VictoryConfettiParticles");
+        particlesObj.transform.SetParent(transform, true);
         particlesObj.transform.position = position;
-
+        activeGameOverEffects.Add(particlesObj);
         ParticleSystem ps = particlesObj.AddComponent<ParticleSystem>();
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
         
@@ -450,18 +483,23 @@ public class ARTableController : MonoBehaviour
         while (obj != null)
         {
             elapsed += Time.deltaTime;
-            
-            // Pulse scale
-            float scaleMultiplier = 1f + 0.1f * Mathf.Sin(elapsed * 4f);
+
+            float scaleMultiplier = 1f + 0.06f * Mathf.Sin(elapsed * 3f);
             obj.transform.localScale = startScale * scaleMultiplier;
 
-            // Slowly rotate around Y axis
-            obj.transform.Rotate(Vector3.up, Time.deltaTime * 15f, Space.World);
+            Camera camera = Camera.main;
+            if (camera != null)
+            {
+                Vector3 directionToCamera = obj.transform.position - camera.transform.position;
+                if (directionToCamera.sqrMagnitude > 0.0001f)
+                {
+                    obj.transform.rotation = Quaternion.LookRotation(directionToCamera.normalized, Vector3.up);
+                }
+            }
 
-            // Slowly hover up and down
-            float yOffset = 0.015f * Mathf.Sin(elapsed * 2f);
+            float yOffset = 0.008f * Mathf.Sin(elapsed * 2f);
             Vector3 pos = obj.transform.position;
-            pos.y = (effectRoot != null ? effectRoot.position.y : transform.position.y) + 0.1f + yOffset;
+            pos.y = (effectRoot != null ? effectRoot.position.y : transform.position.y) + 0.12f + yOffset;
             obj.transform.position = pos;
 
             yield return null;

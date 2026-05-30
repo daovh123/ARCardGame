@@ -1831,6 +1831,7 @@ public class GameUIManager : MonoBehaviour
         RuntimeSfx.Play(RuntimeSfxType.Click, 0.82f);
         SetPaused(false);
         HideColorChoice();
+        ClearARGameOverEffects();
         gameManager.StartOfflineGame();
         RefreshUI();
     }
@@ -1880,6 +1881,15 @@ public class GameUIManager : MonoBehaviour
         else
         {
             pauseMenu.Hide();
+        }
+    }
+
+    private void ClearARGameOverEffects()
+    {
+        ARTableController tableController = FindAnyObjectByType<ARTableController>();
+        if (tableController != null)
+        {
+            tableController.ClearGameOverEffects();
         }
     }
 
