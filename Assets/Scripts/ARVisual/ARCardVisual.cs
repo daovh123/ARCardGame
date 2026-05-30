@@ -11,7 +11,7 @@ public class ARCardVisual : MonoBehaviour
     private static CardSpriteDatabase cardDatabase;
 
     /// <summary>
-    /// Initializes the card's visual texture/sprite and scales it to exactly 0.06m x 0.09m.
+    /// Initializes the card's visual texture/sprite and scales it to exactly 0.075m x 0.112m.
     /// </summary>
     /// <param name="card">The card data to display. If null, displays the card back on the front side as well.</param>
     public void Initialize(CardData card)
@@ -41,14 +41,14 @@ public class ARCardVisual : MonoBehaviour
             backRenderer.sprite = backSprite;
         }
 
-        // Apply scale to match exactly 0.06m x 0.09m
+        // Apply scale to match exactly 0.075m x 0.112m
         if (frontSprite != null)
         {
             Vector3 boundsSize = frontSprite.bounds.size;
             
             // Calculate scale factor relative to target sizes (0.06m wide, 0.09m high)
-            float targetWidth = 0.06f;
-            float targetHeight = 0.09f;
+            float targetWidth = 0.075f;
+            float targetHeight = 0.112f;
 
             if (boundsSize.x > 0 && boundsSize.y > 0)
             {

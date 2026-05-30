@@ -533,13 +533,60 @@ public class GameUIManager : MonoBehaviour
         SetRect(drawButton.transform as RectTransform, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(-104f, -18f), new Vector2(148f, 56f));
 
         StyleButton(restartButton, new Color(0.05f, 0.16f, 0.20f, 0.96f), Color.white);
-        SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-96f, -36f), new Vector2(154f, 48f));
+        SetRect(restartButton.transform as RectTransform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-170f, -78f), new Vector2(184f, 62f));
 
         StyleButton(backMenuButton, new Color(0.05f, 0.16f, 0.20f, 0.96f), Color.white);
         SetButtonLabel(backMenuButton, "Pause");
-        SetRect(backMenuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(92f, -36f), new Vector2(142f, 48f));
+        SetRect(backMenuButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(156f, -78f), new Vector2(174f, 62f));
+        BringSystemButtonsToFront();
     }
 
+
+    private void BringSystemButtonsToFront()
+    {
+        EnsureButtonReceivesInput(restartButton);
+        EnsureButtonReceivesInput(backMenuButton);
+        EnsureButtonReceivesInput(gameOverRestartButton);
+        EnsureButtonReceivesInput(gameOverMenuButton);
+
+        if (restartButton != null)
+        {
+            restartButton.transform.SetAsLastSibling();
+        }
+
+        if (backMenuButton != null)
+        {
+            backMenuButton.transform.SetAsLastSibling();
+        }
+    }
+
+    private void EnsureButtonReceivesInput(Button button)
+    {
+        if (button == null)
+        {
+            return;
+        }
+
+        button.interactable = true;
+
+        Image image = button.GetComponent<Image>();
+        if (image != null)
+        {
+            image.raycastTarget = true;
+        }
+
+        foreach (Graphic graphic in button.GetComponentsInChildren<Graphic>(true))
+        {
+            if (graphic.transform == button.transform)
+            {
+                graphic.raycastTarget = true;
+            }
+            else
+            {
+                graphic.raycastTarget = false;
+            }
+        }
+    }
     private void BuildUnoButton(Transform canvasTransform)
     {
         GameObject buttonObject = new GameObject("Runtime_UNOButton", typeof(RectTransform), typeof(Image), typeof(Button));
@@ -1932,6 +1979,7 @@ public class GameUIManager : MonoBehaviour
             image.sprite = GetRoundedRectSprite("button_" + ColorKey(fill), 220, 84, 18, fill, new Color(1f, 0.95f, 0.78f, 0.52f), 3);
             image.type = Image.Type.Sliced;
             image.color = Color.white;
+            image.raycastTarget = true;
         }
 
         AddShadow(button.gameObject, new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, -4f));
@@ -1960,6 +2008,7 @@ public class GameUIManager : MonoBehaviour
             image.sprite = GetRoundedRectSprite("draw_button_bright", 240, 90, 20, new Color(1f, 0.84f, 0.10f, 1f), new Color(1f, 0.98f, 0.72f, 1f), 5);
             image.type = Image.Type.Sliced;
             image.color = Color.white;
+            image.raycastTarget = true;
         }
 
         Outline outline = drawButton.GetComponent<Outline>();

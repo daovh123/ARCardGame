@@ -19,11 +19,11 @@ public class ARImageTableTracker : MonoBehaviour
     [Header("Placement")]
     [SerializeField] private bool placeTableAtScreenCenter = true;
     [SerializeField] private bool allowLimitedTrackingToSpawn = true;
-    [SerializeField] private float tableWorldScale = 0.62f;
-    [SerializeField] private float tableDistanceFromCamera = 0.65f;
+    [SerializeField] private float tableWorldScale = 0.72f;
+    [SerializeField] private float tableDistanceFromCamera = 0.72f;
     [SerializeField] private Vector2 tableViewportPosition = new Vector2(0.5f, 0.5f);
     [SerializeField] private Vector3 tableWorldOffset = new Vector3(0f, -0.035f, 0f);
-    [SerializeField] private float tableTiltTowardCameraDegrees = 12f;
+    [SerializeField] private float tableTiltTowardCameraDegrees = 20f;
 
     [Header("Marker Fallback")]
     [SerializeField] private bool forceHorizontalTable = true;
@@ -33,6 +33,11 @@ public class ARImageTableTracker : MonoBehaviour
     [SerializeField] private float stableLockTime = 0.2f;
     [SerializeField] private float positionSmoothing = 16f;
     [SerializeField] private float rotationSmoothing = 16f;
+    [SerializeField] private bool recenterWhenCameraSettles = true;
+    [SerializeField] private float cameraIdleTimeToRecenter = 1.15f;
+    [SerializeField] private float recenterDuration = 0.45f;
+    [SerializeField] private float cameraMoveThreshold = 0.045f;
+    [SerializeField] private float cameraAngleThreshold = 6f;
 
     private GameObject spawnedTable;
     private bool hasDetectedTable;
@@ -40,6 +45,15 @@ public class ARImageTableTracker : MonoBehaviour
     private bool isTablePoseLocked;
     private float stableTrackingTime;
     private Pose lockedTablePose;
+    private Vector3 lastCameraPosition;
+    private Quaternion lastCameraRotation;
+    private float cameraIdleTimer;
+    private bool hasCameraPose;
+    private bool cameraMovedSinceLastRecenter;
+    private bool isRecentering;
+    private float recenterElapsed;
+    private Pose recenterStartPose;
+    private Pose recenterTargetPose;
 
     private void Awake()
     {
@@ -54,6 +68,17 @@ public class ARImageTableTracker : MonoBehaviour
         }
     }
 
+
+    private void Update()
+    {
+        if (!recenterWhenCameraSettles || spawnedTable == null || arCamera == null)
+        {
+            return;
+        }
+
+        UpdateCameraSettleRecenter();
+        UpdateRecenterAnimation();
+    }
     private void OnEnable()
     {
         if (trackedImageManager != null)
@@ -158,6 +183,7 @@ public class ARImageTableTracker : MonoBehaviour
         spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
         stableTrackingTime = 0f;
         isTablePoseLocked = false;
+        CaptureCameraPoseBaseline();
 
         Debug.Log("[ARImageTableTracker] Spawned AR table on marker: " + trackedImage.referenceImage.name);
     }
@@ -171,8 +197,11 @@ public class ARImageTableTracker : MonoBehaviour
 
         if (keepTableAfterFirstDetection && isTablePoseLocked)
         {
-            spawnedTable.transform.SetPositionAndRotation(lockedTablePose.position, lockedTablePose.rotation);
-            spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
+            if (!isRecentering)
+            {
+                spawnedTable.transform.SetPositionAndRotation(lockedTablePose.position, lockedTablePose.rotation);
+                spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
+            }
             return;
         }
 
@@ -205,6 +234,94 @@ public class ARImageTableTracker : MonoBehaviour
         }
     }
 
+
+    private void CaptureCameraPoseBaseline()
+    {
+        if (arCamera == null)
+        {
+            hasCameraPose = false;
+            return;
+        }
+
+        lastCameraPosition = arCamera.transform.position;
+        lastCameraRotation = arCamera.transform.rotation;
+        cameraIdleTimer = 0f;
+        hasCameraPose = true;
+        cameraMovedSinceLastRecenter = false;
+    }
+
+    private void UpdateCameraSettleRecenter()
+    {
+        if (isRecentering)
+        {
+            return;
+        }
+
+        if (!hasCameraPose)
+        {
+            CaptureCameraPoseBaseline();
+            return;
+        }
+
+        float moveDelta = Vector3.Distance(arCamera.transform.position, lastCameraPosition);
+        float angleDelta = Quaternion.Angle(arCamera.transform.rotation, lastCameraRotation);
+        bool cameraMoved = moveDelta >= cameraMoveThreshold || angleDelta >= cameraAngleThreshold;
+
+        lastCameraPosition = arCamera.transform.position;
+        lastCameraRotation = arCamera.transform.rotation;
+
+        if (cameraMoved)
+        {
+            cameraIdleTimer = 0f;
+            cameraMovedSinceLastRecenter = true;
+            return;
+        }
+
+        if (!cameraMovedSinceLastRecenter)
+        {
+            return;
+        }
+
+        cameraIdleTimer += Time.deltaTime;
+        if (cameraIdleTimer >= cameraIdleTimeToRecenter)
+        {
+            BeginRecenterToCamera();
+        }
+    }
+
+    private void BeginRecenterToCamera()
+    {
+        recenterStartPose = new Pose(spawnedTable.transform.position, spawnedTable.transform.rotation);
+        recenterTargetPose = GetCameraCenteredTablePose();
+        recenterElapsed = 0f;
+        isRecentering = true;
+        cameraMovedSinceLastRecenter = false;
+        cameraIdleTimer = 0f;
+    }
+
+    private void UpdateRecenterAnimation()
+    {
+        if (!isRecentering || spawnedTable == null)
+        {
+            return;
+        }
+
+        recenterElapsed += Time.deltaTime;
+        float t = recenterDuration <= 0f ? 1f : Mathf.Clamp01(recenterElapsed / recenterDuration);
+        float easedT = Mathf.SmoothStep(0f, 1f, t);
+
+        spawnedTable.transform.position = Vector3.Lerp(recenterStartPose.position, recenterTargetPose.position, easedT);
+        spawnedTable.transform.rotation = Quaternion.Slerp(recenterStartPose.rotation, recenterTargetPose.rotation, easedT);
+        spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
+
+        if (t >= 1f)
+        {
+            isRecentering = false;
+            isTablePoseLocked = true;
+            lockedTablePose = recenterTargetPose;
+            CaptureCameraPoseBaseline();
+        }
+    }
     private Pose GetStableTablePose(ARTrackedImage trackedImage)
     {
         if (placeTableAtScreenCenter && arCamera != null)
