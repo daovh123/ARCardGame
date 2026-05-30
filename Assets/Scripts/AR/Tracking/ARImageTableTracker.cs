@@ -15,9 +15,19 @@ public class ARImageTableTracker : MonoBehaviour
     [SerializeField] private string tableMarkerName = "TableMarker";
     [SerializeField] private bool keepTableAfterFirstDetection = true;
 
+    [Header("Stabilization")]
+    [SerializeField] private bool forceHorizontalTable = true;
+    [SerializeField] private float tableWorldScale = 0.75f;
+    [SerializeField] private Vector3 tableLocalOffset = new Vector3(0f, -0.02f, 0f);
+    [SerializeField] private float stableLockTime = 0.6f;
+    [SerializeField] private float positionSmoothing = 10f;
+    [SerializeField] private float rotationSmoothing = 10f;
+
     private GameObject spawnedTable;
     private bool hasDetectedTable;
     private bool hasNotifiedTableSpawned;
+    private bool isTablePoseLocked;
+    private float stableTrackingTime;
 
     private void Awake()
     {
@@ -74,6 +84,8 @@ public class ARImageTableTracker : MonoBehaviour
 
         if (trackedImage.trackingState != TrackingState.Tracking)
         {
+            stableTrackingTime = 0f;
+
             if (!keepTableAfterFirstDetection && spawnedTable != null)
             {
                 spawnedTable.SetActive(false);
@@ -91,10 +103,14 @@ public class ARImageTableTracker : MonoBehaviour
             UpdateTablePose(trackedImage);
         }
 
-        spawnedTable.SetActive(true);
+        if (spawnedTable != null)
+        {
+            spawnedTable.SetActive(true);
+        }
+
         hasDetectedTable = true;
 
-        if (!hasNotifiedTableSpawned)
+        if (!hasNotifiedTableSpawned && spawnedTable != null)
         {
             hasNotifiedTableSpawned = true;
             OnTableSpawned?.Invoke(spawnedTable);
@@ -109,11 +125,11 @@ public class ARImageTableTracker : MonoBehaviour
             return;
         }
 
-        spawnedTable = Instantiate(
-            arTableRootPrefab,
-            trackedImage.transform.position,
-            trackedImage.transform.rotation
-        );
+        Pose tablePose = GetStableTablePose(trackedImage);
+        spawnedTable = Instantiate(arTableRootPrefab, tablePose.position, tablePose.rotation);
+        spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
+        stableTrackingTime = 0f;
+        isTablePoseLocked = false;
 
         Debug.Log("[ARImageTableTracker] Spawned AR table on marker: " + trackedImage.referenceImage.name);
     }
@@ -125,15 +141,60 @@ public class ARImageTableTracker : MonoBehaviour
             return;
         }
 
-        if (keepTableAfterFirstDetection && hasDetectedTable)
+        if (keepTableAfterFirstDetection && isTablePoseLocked)
         {
             return;
         }
 
-        spawnedTable.transform.SetPositionAndRotation(
-            trackedImage.transform.position,
-            trackedImage.transform.rotation
-        );
+        Pose targetPose = GetStableTablePose(trackedImage);
+
+        spawnedTable.transform.position = Vector3.Lerp(
+            spawnedTable.transform.position,
+            targetPose.position,
+            Time.deltaTime * positionSmoothing);
+
+        spawnedTable.transform.rotation = Quaternion.Slerp(
+            spawnedTable.transform.rotation,
+            targetPose.rotation,
+            Time.deltaTime * rotationSmoothing);
+
+        spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
+
+        if (keepTableAfterFirstDetection)
+        {
+            stableTrackingTime += Time.deltaTime;
+
+            if (stableTrackingTime >= stableLockTime)
+            {
+                isTablePoseLocked = true;
+                spawnedTable.transform.SetPositionAndRotation(targetPose.position, targetPose.rotation);
+                spawnedTable.transform.localScale = Vector3.one * tableWorldScale;
+                Debug.Log("[ARImageTableTracker] AR table pose locked.");
+            }
+        }
+    }
+
+    private Pose GetStableTablePose(ARTrackedImage trackedImage)
+    {
+        Transform imageTransform = trackedImage.transform;
+        Vector3 position = imageTransform.TransformPoint(tableLocalOffset);
+        Quaternion rotation = imageTransform.rotation;
+
+        if (forceHorizontalTable)
+        {
+            Vector3 forward = Camera.main != null
+                ? Vector3.ProjectOnPlane(Camera.main.transform.forward, Vector3.up)
+                : Vector3.ProjectOnPlane(imageTransform.forward, Vector3.up);
+
+            if (forward.sqrMagnitude < 0.001f)
+            {
+                forward = Vector3.forward;
+            }
+
+            rotation = Quaternion.LookRotation(forward.normalized, Vector3.up);
+        }
+
+        return new Pose(position, rotation);
     }
 
     private void HandleRemovedImage(ARTrackedImage trackedImage)

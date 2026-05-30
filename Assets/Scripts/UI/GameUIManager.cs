@@ -263,9 +263,9 @@ public class GameUIManager : MonoBehaviour
     {
         if (arOverlayMode)
         {
-            canvas.renderMode = RenderMode.ScreenSpaceCamera;
-            canvas.worldCamera = Camera.main != null ? Camera.main : FindFirstObjectByType<Camera>();
-            canvas.planeDistance = 6f;
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.worldCamera = null;
+            canvas.sortingOrder = 100;
         }
 
         CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();

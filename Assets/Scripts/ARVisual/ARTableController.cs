@@ -21,18 +21,25 @@ public class ARTableController : MonoBehaviour
     [Header("Card Prefab & Visuals")]
     [Tooltip("The AR Card Prefab to spawn for played/drawn cards")]
     public GameObject cardPrefab;
+    [Tooltip("Number of face-down cards shown as the draw pile")]
+    public int drawPileVisualCardCount = 4;
+    [Tooltip("Local position used for the draw pile anchor on mobile AR")]
+    public Vector3 drawPileLocalPosition = new Vector3(-0.075f, 0.014f, 0.01f);
+    [Tooltip("Local position used for the discard pile anchor on mobile AR")]
+    public Vector3 discardPileLocalPosition = new Vector3(0.075f, 0.015f, 0.01f);
 
     [Header("Animation Settings")]
     [Tooltip("Duration of the card play/discard animation")]
-    public float playDuration = 0.6f;
+    public float playDuration = 1.25f;
     [Tooltip("Duration of the card draw animation")]
-    public float drawDuration = 0.5f;
+    public float drawDuration = 1.05f;
     [Tooltip("Speed at which the turn indicator transitions between player slots")]
     public float indicatorTransitionSpeed = 8f;
     [Tooltip("Height offset of the turn indicator above player slots")]
     public float turnIndicatorHeightOffset = 0.05f;
 
     private List<GameObject> activeDiscardedCards = new List<GameObject>();
+    private readonly List<GameObject> drawPileVisuals = new List<GameObject>();
     private const int MaxDiscardedCards = 8;
 
     private int activePlayerIndex = -1;
@@ -41,7 +48,9 @@ public class ARTableController : MonoBehaviour
 
     private void Start()
     {
-        // Hide turn indicator initially if no turn is set
+        ApplyGameplayLayout();
+        EnsureDrawPileVisual();
+
         if (turnIndicator != null && activePlayerIndex == -1)
         {
             turnIndicator.gameObject.SetActive(false);
@@ -73,6 +82,64 @@ public class ARTableController : MonoBehaviour
     /// <summary>
     /// Activates and moves the turn indicator to highlight the specified player's slot.
     /// </summary>
+
+    private void ApplyGameplayLayout()
+    {
+        if (drawPile != null)
+        {
+            drawPile.localPosition = drawPileLocalPosition;
+        }
+
+        if (discardPile != null)
+        {
+            discardPile.localPosition = discardPileLocalPosition;
+        }
+    }
+
+    private void EnsureDrawPileVisual()
+    {
+        if (drawPile == null || cardPrefab == null || drawPileVisuals.Count > 0)
+        {
+            return;
+        }
+
+        foreach (MeshRenderer renderer in drawPile.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            renderer.enabled = false;
+        }
+
+        int count = Mathf.Max(1, drawPileVisualCardCount);
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 offset = drawPile.up * (i * 0.0016f) + drawPile.right * (i * 0.002f);
+            GameObject cardInstance = Instantiate(cardPrefab, drawPile.position + offset, drawPile.rotation, transform);
+            cardInstance.name = "ARDrawPileCard_" + i;
+
+            ARCardVisual cardVisual = cardInstance.GetComponent<ARCardVisual>();
+            if (cardVisual != null)
+            {
+                cardVisual.Initialize(null);
+            }
+
+            cardInstance.transform.rotation = drawPile.rotation * Quaternion.Euler(0f, i * 2f, 0f);
+            SetCardRenderOrder(cardInstance, 5 + i);
+            drawPileVisuals.Add(cardInstance);
+        }
+    }
+
+    private void SetCardRenderOrder(GameObject cardInstance, int sortingOrder)
+    {
+        if (cardInstance == null)
+        {
+            return;
+        }
+
+        foreach (SpriteRenderer renderer in cardInstance.GetComponentsInChildren<SpriteRenderer>(true))
+        {
+            renderer.sortingOrder = sortingOrder;
+        }
+    }
+
     public void ShowTurn(int playerIndex)
     {
         if (playerIndex < 0 || playerIndex >= playerSlots.Length)
@@ -162,6 +229,7 @@ public class ARTableController : MonoBehaviour
         }
 
         activeDiscardedCards.Add(cardInstance);
+        SetCardRenderOrder(cardInstance, activeDiscardedCards.Count + 20);
     }
 
     /// <summary>
@@ -262,6 +330,7 @@ public class ARTableController : MonoBehaviour
 
         // Add to active list
         activeDiscardedCards.Add(cardInstance);
+        SetCardRenderOrder(cardInstance, activeDiscardedCards.Count + 20);
 
         // 2. Animate movement along arc, lật mặt (flip) and rotation to flat position
         Vector3 startPos = startSlot.position;
@@ -278,13 +347,11 @@ public class ARTableController : MonoBehaviour
         while (elapsed < playDuration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / playDuration;
+            float rawT = Mathf.Clamp01(elapsed / playDuration);
+            float t = Mathf.SmoothStep(0f, 1f, rawT);
 
-            // Ease out quad
-            t = t * (2f - t);
-
-            // Calculate position with a parabolic arc height
-            float arcHeight = 0.08f * Mathf.Sin(t * Mathf.PI);
+            // Calculate position with a higher parabolic arc so AR movement is readable.
+            float arcHeight = 0.14f * Mathf.Sin(rawT * Mathf.PI);
             Vector3 currentPos = Vector3.Lerp(startPos, endPos, t);
             currentPos.y += arcHeight;
 
@@ -326,29 +393,28 @@ public class ARTableController : MonoBehaviour
         Quaternion startRot = startPile.rotation;
         Quaternion endRot = targetSlot.rotation;
         Vector3 initialScale = cardInstance.transform.localScale;
+        SetCardRenderOrder(cardInstance, 80);
 
         float elapsed = 0f;
         while (elapsed < drawDuration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / drawDuration;
-
-            // Ease in quad
-            t = t * t;
+            float rawT = Mathf.Clamp01(elapsed / drawDuration);
+            float t = Mathf.SmoothStep(0f, 1f, rawT);
 
             // Parabolic arc
-            float arcHeight = 0.05f * Mathf.Sin(t * Mathf.PI);
+            float arcHeight = 0.12f * Mathf.Sin(rawT * Mathf.PI);
             Vector3 currentPos = Vector3.Lerp(startPos, endPos, t);
             currentPos.y += arcHeight;
 
             cardInstance.transform.position = currentPos;
             cardInstance.transform.rotation = Quaternion.Slerp(startRot, endRot, t);
 
-            // Scale down to 0 at the end (fade out visual effect)
-            if (t > 0.7f)
+            // Keep most of the card visible, then gently shrink at the very end.
+            if (rawT > 0.82f)
             {
-                float scaleT = (1f - t) / 0.3f;
-                cardInstance.transform.localScale = Vector3.Lerp(Vector3.zero, initialScale, scaleT);
+                float scaleT = 1f - Mathf.SmoothStep(0f, 1f, (rawT - 0.82f) / 0.18f);
+                cardInstance.transform.localScale = initialScale * Mathf.Max(0.15f, scaleT);
             }
 
             yield return null;
