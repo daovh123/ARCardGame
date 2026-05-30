@@ -41,10 +41,16 @@ public class ARTableController : MonoBehaviour
     private List<GameObject> activeDiscardedCards = new List<GameObject>();
     private readonly List<GameObject> drawPileVisuals = new List<GameObject>();
     private const int MaxDiscardedCards = 8;
+    private int discardStackSequence;
 
     private int activePlayerIndex = -1;
     private Vector3 indicatorTargetPos;
     private bool isIndicatorActive = false;
+
+    private void Awake()
+    {
+        ApplyGameplayLayout();
+    }
 
     private void Start()
     {
@@ -210,18 +216,24 @@ public class ARTableController : MonoBehaviour
 
     public void ShowTopDiscardCard(CardData card)
     {
+        SpawnDiscardCard(card, discardPile.rotation, 0f);
+    }
+
+    private GameObject SpawnDiscardCard(CardData card, Quaternion rotation, float randomYaw)
+    {
         if (card == null || discardPile == null || cardPrefab == null)
         {
-            return;
+            return null;
         }
 
-        GameObject cardInstance = Instantiate(
-            cardPrefab,
-            discardPile.position,
-            discardPile.rotation,
-            transform
-        );
+        ApplyGameplayLayout();
 
+        discardStackSequence++;
+        float stackOffset = discardStackSequence * 0.0018f;
+        Vector3 position = discardPile.position + discardPile.up * stackOffset;
+        Quaternion cardRotation = rotation * Quaternion.Euler(0f, randomYaw, 0f);
+
+        GameObject cardInstance = Instantiate(cardPrefab, position, cardRotation, transform);
         ARCardVisual cardVisual = cardInstance.GetComponent<ARCardVisual>();
         if (cardVisual != null)
         {
@@ -229,7 +241,22 @@ public class ARTableController : MonoBehaviour
         }
 
         activeDiscardedCards.Add(cardInstance);
-        SetCardRenderOrder(cardInstance, activeDiscardedCards.Count + 20);
+        SetCardRenderOrder(cardInstance, 100 + discardStackSequence);
+        TrimDiscardPile();
+        return cardInstance;
+    }
+
+    private void TrimDiscardPile()
+    {
+        while (activeDiscardedCards.Count > MaxDiscardedCards)
+        {
+            GameObject oldestCard = activeDiscardedCards[0];
+            activeDiscardedCards.RemoveAt(0);
+            if (oldestCard != null)
+            {
+                Destroy(oldestCard);
+            }
+        }
     }
 
     /// <summary>
@@ -320,6 +347,12 @@ public class ARTableController : MonoBehaviour
 
     private IEnumerator AnimateCardPlay(CardData card, Transform startSlot, Transform targetPile)
     {
+        ApplyGameplayLayout();
+
+        discardStackSequence++;
+        float randomYaw = Random.Range(-15f, 15f);
+        float stackOffset = discardStackSequence * 0.0018f;
+
         // 1. Instantiate card prefab at player's slot
         GameObject cardInstance = Instantiate(cardPrefab, startSlot.position, startSlot.rotation, transform);
         ARCardVisual cardVisual = cardInstance.GetComponent<ARCardVisual>();
@@ -328,19 +361,14 @@ public class ARTableController : MonoBehaviour
             cardVisual.Initialize(card);
         }
 
-        // Add to active list
         activeDiscardedCards.Add(cardInstance);
-        SetCardRenderOrder(cardInstance, activeDiscardedCards.Count + 20);
+        SetCardRenderOrder(cardInstance, 100 + discardStackSequence);
 
-        // 2. Animate movement along arc, lật mặt (flip) and rotation to flat position
+        // 2. Animate movement along arc and rotation to the discard pile.
         Vector3 startPos = startSlot.position;
-        // Stack cards slightly to avoid Z-fighting/overlapping perfectly
-        float yStackOffset = activeDiscardedCards.Count * 0.001f;
-        Vector3 endPos = targetPile.position + targetPile.up * yStackOffset;
+        Vector3 endPos = targetPile.position + targetPile.up * stackOffset;
 
         Quaternion startRot = startSlot.rotation;
-        // The card should lie flat on the table (euler rotation around Y only, relative to the pile's rotation)
-        float randomYaw = Random.Range(-15f, 15f);
         Quaternion endRot = targetPile.rotation * Quaternion.Euler(0f, randomYaw, 0f);
 
         float elapsed = 0f;
@@ -365,16 +393,7 @@ public class ARTableController : MonoBehaviour
         cardInstance.transform.position = endPos;
         cardInstance.transform.rotation = endRot;
 
-        // 3. Keep discard pile trimmed
-        while (activeDiscardedCards.Count > MaxDiscardedCards)
-        {
-            GameObject oldestCard = activeDiscardedCards[0];
-            activeDiscardedCards.RemoveAt(0);
-            if (oldestCard != null)
-            {
-                Destroy(oldestCard);
-            }
-        }
+        TrimDiscardPile();
     }
 
     private IEnumerator AnimateCardDraw(Transform targetSlot, Transform startPile)
