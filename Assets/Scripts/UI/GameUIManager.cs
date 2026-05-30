@@ -161,22 +161,40 @@ public class GameUIManager : MonoBehaviour
             HideColorChoice();
         }
 
-        for (int i = 0; i < handCards.Count; i++)
+        bool useARHand = arOverlayMode;
+        if (handPanel != null)
         {
-            GameObject cardObject = Instantiate(cardUIPrefab, handPanel);
+            handPanel.gameObject.SetActive(!useARHand);
+        }
 
-            CardUI cardUI = cardObject.GetComponent<CardUI>();
-            cardUI.Setup(handCards[i], i, OnCardClicked);
+        if (drawButton != null)
+        {
+            drawButton.gameObject.SetActive(!useARHand);
+        }
 
-            bool canPlayCard = isLocalTurn && !isGameOver && gameManager.CanPlayHandCard(i);
-            cardUI.SetPlayable(canPlayCard);
-            ConfigureHandCardObject(cardObject, i, handCards.Count, canPlayCard);
-
-            Button cardButton = cardObject.GetComponent<Button>();
-
-            if (cardButton != null)
+        if (useARHand)
+        {
+            RefreshARHand();
+        }
+        else
+        {
+            for (int i = 0; i < handCards.Count; i++)
             {
-                cardButton.interactable = isLocalTurn && !isGameOver;
+                GameObject cardObject = Instantiate(cardUIPrefab, handPanel);
+
+                CardUI cardUI = cardObject.GetComponent<CardUI>();
+                cardUI.Setup(handCards[i], i, OnCardClicked);
+
+                bool canPlayCard = isLocalTurn && !isGameOver && gameManager.CanPlayHandCard(i);
+                cardUI.SetPlayable(canPlayCard);
+                ConfigureHandCardObject(cardObject, i, handCards.Count, canPlayCard);
+
+                Button cardButton = cardObject.GetComponent<Button>();
+
+                if (cardButton != null)
+                {
+                    cardButton.interactable = isLocalTurn && !isGameOver;
+                }
             }
         }
 
@@ -193,6 +211,15 @@ public class GameUIManager : MonoBehaviour
         else
         {
             gameOverPanel.SetActive(false);
+        }
+    }
+
+    private void RefreshARHand()
+    {
+        ARHandController arHand = FindAnyObjectByType<ARHandController>();
+        if (arHand != null)
+        {
+            arHand.RefreshHand();
         }
     }
 
@@ -1697,6 +1724,29 @@ public class GameUIManager : MonoBehaviour
         }
 
         return player.handCards.Count + " cards";
+    }
+
+    public void RequestColorChoiceFromAR(int handIndex)
+    {
+        if (!gameManager.IsLocalPlayerTurn() || gameManager.IsGameOver())
+        {
+            return;
+        }
+
+        List<CardData> handCards = gameManager.GetCurrentPlayerHand();
+        if (handIndex < 0 || handIndex >= handCards.Count)
+        {
+            return;
+        }
+
+        if (!gameManager.CanPlayHandCard(handIndex))
+        {
+            RuntimeSfx.Play(RuntimeSfxType.Error, 0.72f);
+            ShowToast("INVALID CARD", "This card cannot be played now.", new Color(1f, 0.28f, 0.22f, 1f));
+            return;
+        }
+
+        ShowColorChoice(handIndex);
     }
 
     private void OnCardClicked(int handIndex)

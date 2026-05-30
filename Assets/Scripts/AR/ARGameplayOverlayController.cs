@@ -6,6 +6,8 @@ public class ARGameplayOverlayController : MonoBehaviour
     [SerializeField] private GameObject scanMarkerPanel;
     [SerializeField] private GameManager gameManager;
 
+    private ARHandController arHandController;
+
     private void Awake()
     {
         SetGameplayVisible(false);
@@ -45,7 +47,24 @@ public class ARGameplayOverlayController : MonoBehaviour
             {
                 table.ShowTopDiscardCard(topCard);
             }
+
+            EnsureARHandController(table);
         }
+    }
+
+    private void EnsureARHandController(ARTableController table)
+    {
+        if (arHandController == null)
+        {
+            arHandController = FindAnyObjectByType<ARHandController>();
+        }
+
+        if (arHandController == null)
+        {
+            arHandController = gameObject.AddComponent<ARHandController>();
+        }
+
+        arHandController.Initialize(gameManager, table);
     }
 
     private void SetGameplayVisible(bool visible)

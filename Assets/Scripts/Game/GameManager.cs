@@ -436,6 +436,60 @@ public class GameManager : MonoBehaviourPunCallbacks
         PublishGameState();
     }
 
+    public void DrawOneCardFromAR()
+    {
+        EnsureCurrentPlayerIsActive();
+
+        if (isGameOver || players.Count == 0)
+        {
+            return;
+        }
+
+        if (pendingDrawPenalty <= 0)
+        {
+            DrawCard();
+            return;
+        }
+
+        PlayerData currentPlayer = players[currentPlayerIndex];
+        if (!IsPlayerActive(currentPlayer))
+        {
+            return;
+        }
+
+        CardData card = DrawFromDeck();
+        if (card != null)
+        {
+            currentPlayer.handCards.Add(card);
+            pendingDrawPenalty = Mathf.Max(0, pendingDrawPenalty - 1);
+            GameEvents.CardDrawn(currentPlayerIndex);
+
+            if (TryApplyCardLimitLoss(currentPlayer))
+            {
+                PublishGameState();
+                return;
+            }
+        }
+
+        hasDrawnThisTurn = false;
+        drawnCardIndex = -1;
+        unoDeclaredPlayerIndex = -1;
+
+        if (pendingDrawPenalty > 0)
+        {
+            lastMessage = currentPlayer.playerName + " drew a penalty card. Draw " + pendingDrawPenalty + " more.";
+        }
+        else
+        {
+            lastMessage = currentPlayer.playerName + " completed the draw penalty and lost their turn.";
+            MoveToNextPlayer();
+        }
+
+        PrintCurrentPlayer();
+        PrintAllHands();
+        PublishGameState();
+    }
+
     public void PassAfterDraw()
     {
         EnsureCurrentPlayerIsActive();
