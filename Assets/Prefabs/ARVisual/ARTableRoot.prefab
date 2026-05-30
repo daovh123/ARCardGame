@@ -63,8 +63,8 @@ MonoBehaviour:
   effectRoot: {fileID: 4143560728742581543}
   cardPrefab: {fileID: 2484664448678001890, guid: 0d5256a8115e5294a9700d462eca9f92, type: 3}
   drawPileVisualCardCount: 4
-  drawPileLocalPosition: {x: -0.075, y: 0.014, z: 0.01}
-  discardPileLocalPosition: {x: 0.075, y: 0.015, z: 0.01}
+  drawPileLocalPosition: {x: -0.13, y: 0.014, z: 0.015}
+  discardPileLocalPosition: {x: 0.13, y: 0.015, z: 0.015}
   playDuration: 1.25
   drawDuration: 1.05
   indicatorTransitionSpeed: 8

@@ -24,9 +24,9 @@ public class ARTableController : MonoBehaviour
     [Tooltip("Number of face-down cards shown as the draw pile")]
     public int drawPileVisualCardCount = 4;
     [Tooltip("Local position used for the draw pile anchor on mobile AR")]
-    public Vector3 drawPileLocalPosition = new Vector3(-0.075f, 0.014f, 0.01f);
+    public Vector3 drawPileLocalPosition = new Vector3(-0.13f, 0.014f, 0.015f);
     [Tooltip("Local position used for the discard pile anchor on mobile AR")]
-    public Vector3 discardPileLocalPosition = new Vector3(0.075f, 0.015f, 0.01f);
+    public Vector3 discardPileLocalPosition = new Vector3(0.13f, 0.015f, 0.015f);
 
     [Header("Animation Settings")]
     [Tooltip("Duration of the card play/discard animation")]
