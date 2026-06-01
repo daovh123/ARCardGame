@@ -28,4 +28,6 @@ public class GameStateData
     public int visualEventPlayerIndex;
     public CardData visualEventCard;
     public string visualEventWinner;
+
+    public int botCount;
 }

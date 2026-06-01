@@ -156,7 +156,7 @@ public class ARTableController : MonoBehaviour
             return -1;
         }
 
-        int playerCount = PhotonNetwork.InRoom ? PhotonNetwork.PlayerList.Length : playerSlots.Length;
+        int playerCount = GetNetworkPlayerCount();
         playerCount = Mathf.Clamp(playerCount, 1, playerSlots.Length);
 
         int localIndex = GetLocalPlayerIndex();
@@ -206,6 +206,26 @@ public class ARTableController : MonoBehaviour
         }
 
         return -1;
+    }
+
+    private int GetNetworkPlayerCount()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+        {
+            return playerSlots.Length;
+        }
+
+        int botCount = 0;
+        if (PhotonNetwork.CurrentRoom.CustomProperties.ContainsKey("botCount"))
+        {
+            object value = PhotonNetwork.CurrentRoom.CustomProperties["botCount"];
+            if (value is int count)
+            {
+                botCount = count;
+            }
+        }
+
+        return Mathf.Clamp(PhotonNetwork.PlayerList.Length + botCount, 1, playerSlots.Length);
     }
 
     public void ShowTurn(int playerIndex)

@@ -9,6 +9,8 @@ using Photon.Realtime;
 public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 {
     private const string PlayerNameKey = "PlayerName";
+    private const string BotCountRoomProperty = "botCount";
+    private const int MaxTotalPlayers = 4;
     [Header("Texts")]
     public TMP_Text connectionStatusText;
     public TMP_Text roomCodeText;
@@ -28,6 +30,9 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
 
     private bool isReady = false;
     private bool themeBuilt;
+    private TMP_Text botCountText;
+    private Button botMinusButton;
+    private Button botPlusButton;
 
     private void Start()
     {
@@ -48,6 +53,7 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         roomCodeText.text = "Room Code: ----";
         playerListText.text = "Players:\nNot in room";
         messageText.text = "Connecting to Photon...";
+        RefreshBotSelection();
 
         ConnectToPhoton();
     }
@@ -146,7 +152,9 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         startGameButton.interactable = PhotonNetwork.IsMasterClient;
 
         SetReadyProperty(false);
+        EnsureRoomBotProperty();
         RefreshPlayerList();
+        RefreshBotSelection();
     }
 
     public override void OnCreateRoomFailed(short returnCode, string message)
@@ -162,13 +170,16 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
     public override void OnPlayerEnteredRoom(Player newPlayer)
     {
         messageText.text = newPlayer.NickName + " joined.";
+        ClampRoomBotCountToAvailableSlots();
         RefreshPlayerList();
+        RefreshBotSelection();
     }
 
     public override void OnPlayerLeftRoom(Player otherPlayer)
     {
         messageText.text = otherPlayer.NickName + " left.";
         RefreshPlayerList();
+        RefreshBotSelection();
     }
 
     public override void OnPlayerPropertiesUpdate(Player targetPlayer, ExitGames.Client.Photon.Hashtable changedProps)
@@ -176,10 +187,21 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         RefreshPlayerList();
     }
 
+    public override void OnRoomPropertiesUpdate(ExitGames.Client.Photon.Hashtable propertiesThatChanged)
+    {
+        if (propertiesThatChanged.ContainsKey(BotCountRoomProperty))
+        {
+            RefreshPlayerList();
+            RefreshBotSelection();
+        }
+    }
+
     public override void OnMasterClientSwitched(Player newMasterClient)
     {
         startGameButton.interactable = PhotonNetwork.IsMasterClient;
+        ClampRoomBotCountToAvailableSlots();
         RefreshPlayerList();
+        RefreshBotSelection();
     }
 
     private void OnReadyClicked()
@@ -213,10 +235,11 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
             return;
         }
 
-        if (PhotonNetwork.CurrentRoom.PlayerCount < 1)
+        int totalPlayerCount = PhotonNetwork.CurrentRoom.PlayerCount + GetRoomBotCount();
+        if (totalPlayerCount < 2)
         {
             RuntimeSfx.Play(RuntimeSfxType.Error, 0.70f);
-            messageText.text = "Need at least 2 players.";
+            messageText.text = "Need at least 2 players or bots.";
             return;
         }
 
@@ -282,12 +305,118 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
             list += hostMark + player.NickName + " - " + readyText + "\n";
         }
 
+        int botCount = GetRoomBotCount();
+        for (int i = 0; i < botCount; i++)
+        {
+            list += "Bot " + (i + 1) + " - Ready\n";
+        }
+
         playerListText.text = list;
 
         TMP_Text readyButtonText = readyButton.GetComponentInChildren<TMP_Text>();
         if (readyButtonText != null)
         {
             readyButtonText.text = isReady ? "Unready" : "Ready";
+        }
+    }
+
+    private void EnsureRoomBotProperty()
+    {
+        if (!PhotonNetwork.IsMasterClient || PhotonNetwork.CurrentRoom == null)
+        {
+            return;
+        }
+
+        if (!PhotonNetwork.CurrentRoom.CustomProperties.ContainsKey(BotCountRoomProperty))
+        {
+            SetRoomBotCount(0);
+        }
+    }
+
+    private int GetRoomBotCount()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+        {
+            return 0;
+        }
+
+        if (!PhotonNetwork.CurrentRoom.CustomProperties.ContainsKey(BotCountRoomProperty))
+        {
+            return 0;
+        }
+
+        object value = PhotonNetwork.CurrentRoom.CustomProperties[BotCountRoomProperty];
+        return value is int count ? Mathf.Clamp(count, 0, GetMaxBotCount()) : 0;
+    }
+
+    private int GetMaxBotCount()
+    {
+        int realPlayerCount = PhotonNetwork.InRoom && PhotonNetwork.CurrentRoom != null
+            ? PhotonNetwork.CurrentRoom.PlayerCount
+            : 0;
+        return Mathf.Clamp(MaxTotalPlayers - realPlayerCount, 0, MaxTotalPlayers - 1);
+    }
+
+    private void ClampRoomBotCountToAvailableSlots()
+    {
+        if (!PhotonNetwork.IsMasterClient)
+        {
+            return;
+        }
+
+        int currentBotCount = GetRoomBotCount();
+        int maxBotCount = GetMaxBotCount();
+        if (currentBotCount > maxBotCount)
+        {
+            SetRoomBotCount(maxBotCount);
+        }
+    }
+
+    private void SetRoomBotCount(int count)
+    {
+        if (!PhotonNetwork.InRoom || !PhotonNetwork.IsMasterClient || PhotonNetwork.CurrentRoom == null)
+        {
+            return;
+        }
+
+        int clampedCount = Mathf.Clamp(count, 0, GetMaxBotCount());
+        ExitGames.Client.Photon.Hashtable props = new ExitGames.Client.Photon.Hashtable();
+        props[BotCountRoomProperty] = clampedCount;
+        PhotonNetwork.CurrentRoom.SetCustomProperties(props);
+        RefreshBotSelection();
+    }
+
+    private void OnBotMinusClicked()
+    {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.72f);
+        SetRoomBotCount(GetRoomBotCount() - 1);
+    }
+
+    private void OnBotPlusClicked()
+    {
+        RuntimeSfx.Play(RuntimeSfxType.Click, 0.72f);
+        SetRoomBotCount(GetRoomBotCount() + 1);
+    }
+
+    private void RefreshBotSelection()
+    {
+        int botCount = GetRoomBotCount();
+        int maxBotCount = GetMaxBotCount();
+        bool canEdit = PhotonNetwork.InRoom && PhotonNetwork.IsMasterClient;
+
+        if (botCountText != null)
+        {
+            botCountText.text = "Bots: " + botCount + " / " + maxBotCount;
+        }
+
+        if (botMinusButton != null)
+        {
+            botMinusButton.interactable = canEdit && botCount > 0;
+        }
+
+        if (botPlusButton != null)
+        {
+            botPlusButton.interactable = canEdit && botCount < maxBotCount;
         }
     }
 
@@ -414,11 +543,13 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         RuntimeUITheme.StyleButton(joinRoomButton, RuntimeUITheme.Blue, Color.white, "Join Room");
         RuntimeUITheme.SetRect(joinRoomButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -48f), new Vector2(400f, 64f));
 
+        BuildBotControls(readyButton.transform.parent);
+
         RuntimeUITheme.StyleButton(readyButton, RuntimeUITheme.Felt, Color.white, "Ready");
-        RuntimeUITheme.SetRect(readyButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -132f), new Vector2(400f, 64f));
+        RuntimeUITheme.SetRect(readyButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -178f), new Vector2(400f, 64f));
 
         RuntimeUITheme.StyleButton(startGameButton, new Color(0.88f, 0.08f, 0.12f, 1f), Color.white, "Start Game");
-        RuntimeUITheme.SetRect(startGameButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -216f), new Vector2(400f, 64f));
+        RuntimeUITheme.SetRect(startGameButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -262f), new Vector2(400f, 64f));
 
         RuntimeUITheme.StyleButton(backButton, new Color(0.08f, 0.16f, 0.18f, 0.98f), Color.white, "Back");
         RuntimeUITheme.SetRect(backButton.transform as RectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(94f, -40f), new Vector2(140f, 48f));
@@ -428,5 +559,42 @@ public class PhotonLobbyManager : MonoBehaviourPunCallbacks
         readyButton.transform.SetAsLastSibling();
         startGameButton.transform.SetAsLastSibling();
         backButton.transform.SetAsLastSibling();
+
+        RefreshBotSelection();
+    }
+
+    private void BuildBotControls(Transform parent)
+    {
+        if (parent == null || botCountText != null)
+        {
+            return;
+        }
+
+        botCountText = RuntimeUITheme.CreateLabel(parent, "Runtime_BotCountText", "Bots: 0 / 3", 24, new Color(0.78f, 0.96f, 1f, 1f));
+        RuntimeUITheme.SetRect(botCountText.rectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(350f, -116f), new Vector2(210f, 48f));
+
+        botMinusButton = CreateRuntimeButton(parent, "Runtime_BotMinusButton", "-");
+        RuntimeUITheme.StyleButton(botMinusButton, new Color(0.08f, 0.16f, 0.18f, 0.98f), Color.white, "-");
+        RuntimeUITheme.SetRect(botMinusButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(212f, -116f), new Vector2(72f, 54f));
+        botMinusButton.onClick.AddListener(OnBotMinusClicked);
+
+        botPlusButton = CreateRuntimeButton(parent, "Runtime_BotPlusButton", "+");
+        RuntimeUITheme.StyleButton(botPlusButton, RuntimeUITheme.Gold, RuntimeUITheme.Ink, "+");
+        RuntimeUITheme.SetRect(botPlusButton.transform as RectTransform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(488f, -116f), new Vector2(72f, 54f));
+        botPlusButton.onClick.AddListener(OnBotPlusClicked);
+
+        botMinusButton.transform.SetAsLastSibling();
+        botPlusButton.transform.SetAsLastSibling();
+        botCountText.transform.SetAsLastSibling();
+    }
+
+    private Button CreateRuntimeButton(Transform parent, string name, string label)
+    {
+        GameObject buttonObject = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+
+        TMP_Text labelText = RuntimeUITheme.CreateLabel(buttonObject.transform, "Label", label, 28, Color.white);
+        RuntimeUITheme.SetRect(labelText.rectTransform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        return buttonObject.GetComponent<Button>();
     }
 }

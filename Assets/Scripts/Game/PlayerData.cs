@@ -7,6 +7,7 @@ public class PlayerData
     public int playerIndex;
     public string playerName;
     public List<CardData> handCards = new List<CardData>();
+    public bool isBot;
     public bool hasFinished;
     public bool isEliminated;
     public bool isLastPlace;
@@ -16,10 +17,11 @@ public class PlayerData
     {
     }
 
-    public PlayerData(int playerIndex, string playerName)
+    public PlayerData(int playerIndex, string playerName, bool isBot = false)
     {
         this.playerIndex = playerIndex;
         this.playerName = playerName;
+        this.isBot = isBot;
     }
 
     public int CardCount

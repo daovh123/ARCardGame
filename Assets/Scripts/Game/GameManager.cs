@@ -7,6 +7,9 @@ using ExitGames.Client.Photon;
 public class GameManager : MonoBehaviourPunCallbacks
 {
     private const int MaxHandCardsBeforeLoss = 25;
+    private const string BotCountRoomProperty = "botCount";
+    private const int MaxTotalPlayers = 4;
+    private const float BotTurnDelay = 0.85f;
 
     public int playerCount = 4;
     public int startCardCount = 7;
@@ -33,6 +36,8 @@ public class GameManager : MonoBehaviourPunCallbacks
     private CardData visualEventCard;
     private string visualEventWinner = "";
     private int lastAppliedVisualEventSequence;
+    private int botCount;
+    private Coroutine botTurnRoutine;
 
     private void Awake()
     {
@@ -90,9 +95,12 @@ public class GameManager : MonoBehaviourPunCallbacks
 
         if (PhotonNetwork.InRoom)
         {
-            playerCount = PhotonNetwork.PlayerList.Length;
+            botCount = GetRoomBotCount();
+            int realPlayerCount = PhotonNetwork.PlayerList.Length;
+            int totalPlayerCount = Mathf.Clamp(realPlayerCount + botCount, 1, MaxTotalPlayers);
+            playerCount = totalPlayerCount;
 
-            for (int i = 0; i < PhotonNetwork.PlayerList.Length; i++)
+            for (int i = 0; i < realPlayerCount; i++)
             {
                 string playerName = PhotonNetwork.PlayerList[i].NickName;
 
@@ -103,9 +111,15 @@ public class GameManager : MonoBehaviourPunCallbacks
 
                 players.Add(new PlayerData(i, playerName));
             }
+
+            for (int i = realPlayerCount; i < totalPlayerCount; i++)
+            {
+                players.Add(new PlayerData(i, "Bot " + (i - realPlayerCount + 1), true));
+            }
         }
         else
         {
+            botCount = 0;
             for (int i = 0; i < playerCount; i++)
             {
                 players.Add(new PlayerData(i, "Player " + (i + 1)));
@@ -127,6 +141,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         PrintCurrentPlayer();
         PrintAllHands();
         PublishGameState();
+        ScheduleBotTurnIfNeeded();
     }
 
     private void DealCards()
@@ -365,6 +380,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         PrintCurrentPlayer();
         PrintAllHands();
         PublishGameState();
+        ScheduleBotTurnIfNeeded();
     }
 
     private string ResolveRoundEndDrawPenalty()
@@ -445,6 +461,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         PrintCurrentPlayer();
         PrintAllHands();
         PublishGameState();
+        ScheduleBotTurnIfNeeded();
     }
 
     public void DrawOneCardFromAR()
@@ -499,6 +516,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         PrintCurrentPlayer();
         PrintAllHands();
         PublishGameState();
+        ScheduleBotTurnIfNeeded();
     }
 
     public void PassAfterDraw()
@@ -522,6 +540,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         unoDeclaredPlayerIndex = -1;
         MoveToNextPlayer();
         PublishGameState();
+        ScheduleBotTurnIfNeeded();
     }
 
     public void CallUno()
@@ -1047,6 +1066,124 @@ public class GameManager : MonoBehaviourPunCallbacks
         return currentPhotonPlayer == PhotonNetwork.LocalPlayer;
     }
 
+    private int GetRoomBotCount()
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom == null)
+        {
+            return 0;
+        }
+
+        if (!PhotonNetwork.CurrentRoom.CustomProperties.ContainsKey(BotCountRoomProperty))
+        {
+            return 0;
+        }
+
+        object value = PhotonNetwork.CurrentRoom.CustomProperties[BotCountRoomProperty];
+        if (value is int count)
+        {
+            return Mathf.Clamp(count, 0, MaxTotalPlayers - PhotonNetwork.PlayerList.Length);
+        }
+
+        return 0;
+    }
+
+    private bool IsBotTurn()
+    {
+        if (!PhotonNetwork.InRoom || !PhotonNetwork.IsMasterClient || isGameOver)
+        {
+            return false;
+        }
+
+        if (currentPlayerIndex < 0 || currentPlayerIndex >= players.Count)
+        {
+            return false;
+        }
+
+        return players[currentPlayerIndex].isBot || currentPlayerIndex >= PhotonNetwork.PlayerList.Length;
+    }
+
+    private void ScheduleBotTurnIfNeeded()
+    {
+        if (!IsBotTurn())
+        {
+            return;
+        }
+
+        if (botTurnRoutine != null)
+        {
+            StopCoroutine(botTurnRoutine);
+        }
+
+        botTurnRoutine = StartCoroutine(RunBotTurnAfterDelay());
+    }
+
+    private System.Collections.IEnumerator RunBotTurnAfterDelay()
+    {
+        yield return new WaitForSeconds(BotTurnDelay);
+        botTurnRoutine = null;
+
+        if (!IsBotTurn())
+        {
+            yield break;
+        }
+
+        PlayBotTurn();
+    }
+
+    private void PlayBotTurn()
+    {
+        EnsureCurrentPlayerIsActive();
+
+        if (!IsBotTurn())
+        {
+            return;
+        }
+
+        PlayerData bot = players[currentPlayerIndex];
+        int playableIndex = FindPlayableCardIndex(bot);
+
+        if (playableIndex >= 0)
+        {
+            if (bot.handCards.Count == 2)
+            {
+                unoDeclaredPlayerIndex = currentPlayerIndex;
+            }
+
+            CardData card = bot.handCards[playableIndex];
+            CardColor chosenColor = RequiresColorChoice(card) ? ChooseBestColorForPlayer(bot) : CardColor.Wild;
+            PlayCard(playableIndex, chosenColor);
+            return;
+        }
+
+        DrawCard();
+    }
+
+    private int FindPlayableCardIndex(PlayerData player)
+    {
+        if (player == null || player.handCards == null)
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < player.handCards.Count; i++)
+        {
+            if (CanPlayHandCard(i) && player.handCards[i].type != CardType.DrawFour && player.handCards[i].type != CardType.ChangeColor)
+            {
+                return i;
+            }
+        }
+
+        for (int i = 0; i < player.handCards.Count; i++)
+        {
+            if (CanPlayHandCard(i))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     public bool RequiresColorChoice(CardData card)
     {
         return card != null && (card.type == CardType.ChangeColor || card.type == CardType.DrawFour);
@@ -1252,6 +1389,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         state.visualEventPlayerIndex = visualEventPlayerIndex;
         state.visualEventCard = visualEventCard;
         state.visualEventWinner = visualEventWinner;
+        state.botCount = botCount;
 
         return state;
     }
@@ -1283,6 +1421,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         visualEventPlayerIndex = state.visualEventPlayerIndex;
         visualEventCard = state.visualEventCard;
         visualEventWinner = state.visualEventWinner;
+        botCount = state.botCount;
     }
 
     private void PublishGameState()
@@ -1299,6 +1438,7 @@ public class GameManager : MonoBehaviourPunCallbacks
         props["gameState"] = json;
 
         PhotonNetwork.CurrentRoom.SetCustomProperties(props);
+        ScheduleBotTurnIfNeeded();
     }
 
     private void TryApplyRoomState()
@@ -1332,6 +1472,11 @@ public class GameManager : MonoBehaviourPunCallbacks
             if (uiManager != null)
             {
                 uiManager.RefreshUI();
+            }
+
+            if (PhotonNetwork.IsMasterClient)
+            {
+                ScheduleBotTurnIfNeeded();
             }
         }
     }
